@@ -5,7 +5,7 @@
 
 program fat_ring
 
-   use composition, only: factorization_t
+   use composition, only: factorization_t, factored_divisor
    use constants,   only: INT64, FP64, buflen
 
    implicit none
@@ -20,13 +20,14 @@ program fat_ring
    real(kind=FP64) :: two = 2_FP64
 
    ! main parameters
-   integer(kind=INT64) :: n_doubles = 3 * 2**24  ! the amount of data to operate on
+   integer(kind=INT64) :: n_doubles = 5**2 * 2**21  ! the amount of data to operate on
    integer, save :: verbosity = V_SPEED, test_mask = T_MPI
 
    ! local variables
    integer(kind=INT64) :: i
    character(len=buflen) :: arg, buf
    type(factorization_t) :: n
+   type(factored_divisor) :: d
 
    ! ToDo parse arguments
    if (command_argument_count() >= 1) then
@@ -50,6 +51,11 @@ program fat_ring
 
    call n%factorize(n_doubles)
 
+   call d%reset(n)
+   do while (d%is_valid())
+      write(*,*) n%number, d%total(), n%number/d%total()
+      call d%next()
+   enddo
    call n%erase
 
    if (.false.) i = verbosity * test_mask  ! temporarily suppress -Wunused-variable
