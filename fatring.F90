@@ -5,22 +5,17 @@
 
 program fat_ring
 
-   use composition, only: factorization_t, factored_divisor
-   use constants,   only: INT64, FP64, buflen
+   use composition, only: factorization_t
+   use divisor,     only: factored_divisor
+   use constants,   only: INT64, FP64, buflen, V_SPEED, T_MPI
 
    implicit none
 
    ! constants
-   enum, bind(C)
-      enumerator :: V_NONE = 0, V_SPEED, V_STATS, V_DETAILED  ! verbosity levels
-   end enum
-   enum, bind(C)
-      enumerator :: T_MPI = 1 !, T_COARRAY = 2 * T_MPI, T_OMP = 2 * T_COARRAY  ! masks for test types to perform
-   end enum
    real(kind=FP64) :: two = 2_FP64
 
-   ! main parameters
-   integer(kind=INT64) :: n_doubles = 5**2 * 2**21  ! the amount of data to operate on
+   ! defaults for main parameters
+   integer(kind=INT64), save :: n_doubles = 5**2 * 2**21  ! the amount of data to operate on
    integer, save :: verbosity = V_SPEED, test_mask = T_MPI
 
    ! local variables

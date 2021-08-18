@@ -3,26 +3,26 @@
 ! To achieve good coverage of the message size spectrum it is advised to use
 ! a buffer length that is nicely divisible by many different factors.
 ! Some candidates are:
-!     2**n  - for fast, coarse scans (~3 point/decade)
-!     3*2**n  - less coarse scan (6-7 points per decade, 2nd favourite)
-!     11*2**n, 23*2**n - similar to above but a bit better for logarithmic scales
-!     13**2*3**n  - similar to above, free of powers of 2, very even on logarithmic scale
-!     5**2*2**n  - ~10 points per decade, very even, default
-!     3*7*2**n  - fine scan (~13 points per decade)
-!     11*19*2**n, 23*19*2**n  - similar to above but a bit better for logarithmic scales
-!     43243200, 61261200 or other highly composite number for best resolution (and slowest scan)
+!     2**n, 3**n              for fast, coarse scans (~3 and ~2 point/decade, respectively)
+!     3*2**n                  less coarse scan (6-7 points per decade, 2nd favourite)
+!     11*2**n, 23*2**n        similar to above but a bit better for logarithmic scales
+!     13**2*3**n              similar to above, free of powers of 2, very even on logarithmic scale
+!     5**2*2**n               ~10 points per decade, very even, default
+!     3*7*2**n                fine scan (~13 points per decade)
+!     11*19*2**n, 23*19*2**n  similar to above but a bit better for logarithmic scales
+!     43243200, 61261200      (or other highly composite number) for best resolution, especially in the middle (and slowest scan)
 
 ! For a list of Highly Composite Numbers, see e.g.:
 ! http://wwwhomes.uni-bielefeld.de/achim/highly.txt
 
-module composition
+module singleprime
 
    use constants, only: INT64
 
    implicit none
 
    private
-   public :: factorization_t, factored_divisor
+   public :: component
 
    type :: component
       integer(kind=INT64) :: prime
@@ -31,11 +31,63 @@ module composition
       procedure :: val
    end type component
 
+contains
+
+   integer(kind=INT64) pure function val(this)
+
+      implicit none
+
+      class(component), intent(in) :: this  ! object invoking type-bound procedure
+
+      val = this%prime ** this%power
+
+   end function val
+
+end module singleprime
+
+module setofprimes
+
+   use constants,   only: INT64
+   use singleprime, only: component
+
+   implicit none
+
+   private
+   public :: component_set
+
    type :: component_set
       type(component), allocatable, dimension(:) :: factors
    contains
       procedure :: total
    end type component_set
+
+contains
+
+   integer(kind=INT64) function total(this)
+
+      implicit none
+
+      class(component_set), intent(in) :: this  ! object invoking type-bound procedure
+
+      integer :: i
+
+      total = 1
+      do i = lbound(this%factors, dim=1), ubound(this%factors, dim=1)
+         total = total * this%factors(i)%val()
+      enddo
+
+   end function total
+
+end module setofprimes
+
+module divisor
+
+   use setofprimes, only: component_set
+
+   implicit none
+
+   private
+   public :: factored_divisor
 
    type, extends(component_set) :: factored_divisor
       type(component_set) :: reference
@@ -45,6 +97,87 @@ module composition
       procedure :: clear
       procedure :: is_valid
    end type factored_divisor
+
+contains
+
+   subroutine reset(this, f)
+
+      implicit none
+
+      class(factored_divisor), intent(inout) :: this  ! object invoking type-bound procedure
+      class(component_set),    intent(in)    :: f     ! reference number, should be already factored
+
+      call this%clear
+      allocate(this%factors(size(f%factors)))
+      allocate(this%reference%factors(size(f%factors)))
+
+      this%factors(:)%prime = f%factors(:)%prime
+      this%factors(:)%power = 0
+
+      this%reference%factors = f%factors
+
+   end subroutine reset
+
+   subroutine next(this)
+
+      implicit none
+
+      class(factored_divisor), intent(inout) :: this  ! object invoking type-bound procedure
+
+      integer :: i
+      logical :: done
+
+      done = .false.
+
+      do i = lbound(this%factors, dim=1), ubound(this%factors, dim=1)
+         associate (p => this%factors(i)%power)
+            if (p < this%reference%factors(i)%power) then
+               p = p + 1
+               done = .true.
+            else
+               p = 0
+            endif
+         end associate
+         if (done) exit
+      enddo
+
+      if (.not. done) call this%clear
+
+   end subroutine next
+
+   subroutine clear(this)
+
+      implicit none
+
+      class(factored_divisor), intent(inout) :: this  ! object invoking type-bound procedure
+
+      if (allocated(this%factors)) deallocate(this%factors)
+      if (allocated(this%reference%factors)) deallocate(this%reference%factors)
+
+   end subroutine clear
+
+   logical function is_valid(this)
+
+      implicit none
+
+      class(factored_divisor), intent(in) :: this  ! object invoking type-bound procedure
+
+      is_valid = (allocated(this%factors) .and. allocated(this%reference%factors))
+
+   end function is_valid
+
+end module divisor
+
+module composition
+
+   use constants,   only: INT64
+   use setofprimes, only: component_set
+   use singleprime, only: component
+
+   implicit none
+
+   private
+   public :: factorization_t
 
    type, extends(component_set) :: factorization_t
       integer(kind=INT64) :: number
@@ -121,96 +254,5 @@ contains
       if (allocated(this%factors)) deallocate(this%factors)
 
    end subroutine erase
-
-   subroutine reset(this, f)
-
-      implicit none
-
-      class(factored_divisor), intent(inout) :: this  ! object invoking type-bound procedure
-      class(factorization_t),  intent(in)    :: f     ! reference number, should be already factored
-
-      call this%clear
-      allocate(this%factors(size(f%factors)))
-      allocate(this%reference%factors(size(f%factors)))
-
-      this%factors(:)%prime = f%factors(:)%prime
-      this%factors(:)%power = 0
-
-      this%reference%factors = f%factors(:)
-
-   end subroutine reset
-
-   subroutine next(this)
-
-      implicit none
-
-      class(factored_divisor), intent(inout) :: this  ! object invoking type-bound procedure
-
-      integer :: i
-      logical :: done
-
-      done = .false.
-
-      do i = lbound(this%factors, dim=1), ubound(this%factors, dim=1)
-         associate (p => this%factors(i)%power)
-            if (p < this%reference%factors(i)%power) then
-               p = p + 1
-               done = .true.
-            else
-               p = 0
-            endif
-         end associate
-         if (done) exit
-      enddo
-
-      if (.not. done) call this%clear
-
-   end subroutine next
-
-   subroutine clear(this)
-
-      implicit none
-
-      class(factored_divisor), intent(inout) :: this  ! object invoking type-bound procedure
-
-      if (allocated(this%factors)) deallocate(this%factors)
-      if (allocated(this%reference%factors)) deallocate(this%reference%factors)
-
-   end subroutine clear
-
-   logical function is_valid(this)
-
-      implicit none
-
-      class(factored_divisor), intent(in) :: this  ! object invoking type-bound procedure
-
-      is_valid = (allocated(this%factors) .and. allocated(this%reference%factors))
-
-   end function is_valid
-
-   integer(kind=INT64) pure function val(this)
-
-      implicit none
-
-      class(component), intent(in) :: this  ! object invoking type-bound procedure
-
-      val = this%prime ** this%power
-
-   end function val
-
-   integer(kind=INT64) function total(this)
-
-      implicit none
-
-      class(component_set), intent(in) :: this  ! object invoking type-bound procedure
-
-      integer :: i
-
-      total = 1
-      do i = lbound(this%factors, dim=1), ubound(this%factors, dim=1)
-         total = total * this%factors(i)%val()
-      enddo
-
-   end function total
 
 end module composition
