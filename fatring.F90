@@ -5,14 +5,12 @@
 
 program fat_ring
 
-   use primes_utils, only: primes_t
+   use composition, only: factorization_t
+   use constants,   only: INT64, FP64, buflen
 
    implicit none
 
    ! constants
-   integer, parameter :: INT64 = selected_int_kind(16)
-   integer, parameter :: FP64 = selected_real_kind(12)
-   integer, parameter :: arglen = 512
    enum, bind(C)
       enumerator :: V_NONE = 0, V_SPEED, V_STATS, V_DETAILED  ! verbosity levels
    end enum
@@ -27,8 +25,8 @@ program fat_ring
 
    ! local variables
    integer(kind=INT64) :: i
-   character(len=arglen) :: arg, buf
-   type(primes_t) :: primes
+   character(len=buflen) :: arg, buf
+   type(factorization_t) :: n
 
    ! ToDo parse arguments
    if (command_argument_count() >= 1) then
@@ -50,10 +48,12 @@ program fat_ring
    end select
    write(*,*) "Starting fat MPI ring test with ", trim(adjustl(arg)), " doubles (", trim(adjustl(buf)), ")"
 
-   call primes%sieve(int(sqrt(real(n_doubles)), kind=INT64))
-   !call primes%print
+   call n%factorize(n_doubles)
+
+   call n%erase
 
    if (.false.) i = verbosity * test_mask  ! temporarily suppress -Wunused-variable
-   call primes%erase
+
+   write(*,*)"End."
 
 end program fat_ring

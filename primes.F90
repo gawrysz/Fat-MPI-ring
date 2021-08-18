@@ -4,12 +4,12 @@
 
 module primes_utils
 
+   use constants, only: INT64
+
    implicit none
 
    private
    public :: primes_t
-
-   integer, parameter :: INT64 = selected_int_kind(16)
 
    ! The type that contain table of primes and initializer
    type :: primes_t
@@ -20,8 +20,6 @@ module primes_utils
       procedure :: erase  ! restore initial state
       procedure :: print  ! print what was found
    end type primes_t
-
-   integer, parameter :: INVALID_MAX = -1
 
 contains
 
@@ -81,12 +79,14 @@ contains
 
    subroutine erase(this)
 
+      use constants, only: INVALID
+
       implicit none
 
       class(primes_t), intent(inout) :: this  ! object invoking type-bound procedure
 
       deallocate(this%tab)
-      this%max = INVALID_MAX
+      this%max = INVALID
 
    end subroutine erase
 
