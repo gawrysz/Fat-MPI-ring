@@ -31,3 +31,9 @@
 *.out
 *.app
 fatring
+
+# CMake stuff
+CMakeCache.txt
+CMakeFiles
+Makefile
+cmake_install.cmake
