@@ -5,6 +5,8 @@
 
 program fat_ring
 
+   use primes_utils, only: primes_t
+
    implicit none
 
    ! constants
@@ -26,6 +28,7 @@ program fat_ring
    ! local variables
    integer(kind=INT64) :: i
    character(len=arglen) :: arg, buf
+   type(primes_t) :: primes
 
    ! ToDo parse arguments
    if (command_argument_count() >= 1) then
@@ -47,6 +50,10 @@ program fat_ring
    end select
    write(*,*) "Starting fat MPI ring test with ", trim(adjustl(arg)), " doubles (", trim(adjustl(buf)), ")"
 
+   call primes%sieve(int(sqrt(real(n_doubles)), kind=INT64))
+   !call primes%print
+
    if (.false.) i = verbosity * test_mask  ! temporarily suppress -Wunused-variable
+   call primes%erase
 
 end program fat_ring
