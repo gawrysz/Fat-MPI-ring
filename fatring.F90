@@ -49,8 +49,9 @@ program fat_ring
    call d%reset(n)
    do while (d%is_valid())
       write(*,*) n%number, d%total(), n%number/d%total()
-      call d%next()
+      call d%next_div
    enddo
+   call d%clear
    call n%erase
 
    if (.false.) i = verbosity * test_mask  ! temporarily suppress -Wunused-variable

@@ -35,11 +35,17 @@ contains
 
    integer(kind=INT64) pure function val(this)
 
+      use constants, only: INVALID
+
       implicit none
 
       class(component), intent(in) :: this  ! object invoking type-bound procedure
 
-      val = this%prime ** this%power
+      if (this%power > INVALID) then
+         val = this%prime ** this%power
+      else
+         val = INVALID
+      endif
 
    end function val
 
@@ -63,7 +69,9 @@ module setofprimes
 
 contains
 
-   integer(kind=INT64) function total(this)
+   integer(kind=INT64) pure function total(this)
+
+      use constants, only: INVALID
 
       implicit none
 
@@ -71,10 +79,19 @@ contains
 
       integer :: i
 
-      total = 1
-      do i = lbound(this%factors, dim=1), ubound(this%factors, dim=1)
-         total = total * this%factors(i)%val()
-      enddo
+      if (allocated(this%factors)) then
+         total = 1
+         do i = lbound(this%factors, dim=1), ubound(this%factors, dim=1)
+            if (this%factors(i)%val() > INVALID) then
+               total = total * this%factors(i)%val()
+            else
+               total = INVALID
+               exit
+            endif
+         enddo
+      else
+         total = INVALID
+      endif
 
    end function total
 
@@ -93,7 +110,8 @@ module divisor
       type(component_set) :: reference
    contains
       procedure :: reset
-      procedure :: next
+      procedure, private :: next
+      procedure :: next_div
       procedure :: clear
       procedure :: is_valid
    end type factored_divisor
@@ -120,6 +138,8 @@ contains
 
    subroutine next(this)
 
+      use constants, only: INVALID
+
       implicit none
 
       class(factored_divisor), intent(inout) :: this  ! object invoking type-bound procedure
@@ -141,9 +161,37 @@ contains
          if (done) exit
       enddo
 
-      if (.not. done) call this%clear
+      if (.not. done) this%factors(:)%power = INVALID
 
    end subroutine next
+
+   subroutine next_div(this)
+
+      use constants, only: INT64
+
+      implicit none
+
+      class(factored_divisor), intent(inout) :: this  ! object invoking type-bound procedure
+
+      integer(kind=INT64) :: cur, nxt
+
+      cur = this%total()
+      nxt = huge(1_INT64)
+      this%factors(:)%power = 0
+      do while (this%is_valid())  ! for sure we can use more efficient searching or create a list and sort it but here it is fast enough for now
+         call this%next
+         if (this%is_valid()) then
+            if (this%total() > cur .and. this%total() < nxt) nxt = this%total()
+         endif
+      enddo
+      this%factors(:)%power = 0
+      do while (this%is_valid())
+!         write(*,*), cur, nxt, this%is_valid(), this%total()
+         call this%next
+         if (this%total() == nxt) exit
+      enddo
+
+   end subroutine next_div
 
    subroutine clear(this)
 
@@ -158,11 +206,14 @@ contains
 
    logical function is_valid(this)
 
+      use constants, only: INVALID
+
       implicit none
 
       class(factored_divisor), intent(in) :: this  ! object invoking type-bound procedure
 
       is_valid = (allocated(this%factors) .and. allocated(this%reference%factors))
+      if (is_valid) is_valid = all(this%factors(:)%power > INVALID)
 
    end function is_valid
 
@@ -204,6 +255,8 @@ contains
       character(len=buflen) :: buf, n1, n2
 
       this%number = n
+      ! Restrict the test to nicely divisible numbers to avoid computing excessively large list of primes.
+      ! Calling primes%sieve(this%number) will be perfectly correct but would take long time for GB-sized buffer.
       call primes%sieve(int(sqrt(real(this%number)), kind=INT64))
       !call primes%print
 
