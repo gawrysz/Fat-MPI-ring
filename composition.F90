@@ -221,7 +221,7 @@ end module divisor
 
 module composition
 
-   use constants,   only: INT64
+   use constants,   only: INT64, buflen
    use setofprimes, only: component_set
    use singleprime, only: component
 
@@ -232,6 +232,7 @@ module composition
 
    type, extends(component_set) :: factorization_t
       integer(kind=INT64) :: number
+      character(len=buflen) :: factor_str
    contains
       procedure :: factorize
       procedure :: erase
@@ -241,7 +242,6 @@ contains
 
    subroutine factorize(this, n)
 
-      use constants,    only: buflen
       use primes_utils, only: primes_t
 
       implicit none
@@ -252,7 +252,7 @@ contains
       type(primes_t) :: primes
       integer :: i
       integer(kind=INT64) :: auxn
-      character(len=buflen) :: buf, n1, n2
+      character(len=buflen) :: n1, n2
 
       this%number = n
       ! Restrict the test to nicely divisible numbers to avoid computing excessively large list of primes.
@@ -277,16 +277,16 @@ contains
          call exit(-7)
       endif
 
-      write(buf, *) this%number, " = "
+      this%factor_str = ""
       do i = lbound(this%factors, dim=1), ubound(this%factors, dim=1)
          write(n1, *) this%factors(i)%prime
          write(n2, *) this%factors(i)%power
-         write(buf, *) trim(adjustl(buf)), " ", trim(adjustl(n1)), "**", trim(adjustl(n2)), merge("  ", " *", i == ubound(this%factors, dim=1))
+         this%factor_str = adjustl(trim(this%factor_str) // " " // trim(adjustl(n1)) // "**" // trim(adjustl(n2)) // merge("  ", " *", i == ubound(this%factors, dim=1)))
       enddo
 
-      if (this%total() == this%number) then
-         write(*,*) trim(adjustl(buf))
-      else
+      if (this%total() /= this%number) then
+         write(n1, *) this%number / this%total()
+         this%factor_str = trim(this%factor_str) // " * " // trim(adjustl(n1)) // " (incomplete?)"
          write(*,*)"Decomposition failed: ", this%total(), " /= ", this%number
          call exit(-3)
       endif

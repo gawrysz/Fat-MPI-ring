@@ -42,13 +42,16 @@ program fat_ring
       case default
          write(buf, '(i20,a)') int(n_doubles * two**3, kind=INT64), " B"
    end select
-   write(*,*) "Starting fat MPI ring test with ", trim(adjustl(arg)), " doubles (", trim(adjustl(buf)), ")"
 
    call n%factorize(n_doubles)
 
+   write(*,*)"Starting fat MPI ring test with ", trim(adjustl(arg)), " ==", trim(n%factor_str), " doubles (", trim(adjustl(buf)), ")"
+
    call d%reset(n)
+   i = 1
    do while (d%is_valid())
-      write(*,*) n%number, d%total(), n%number/d%total()
+      write(*,'(a,i4,a,2(i10,a))')"# Test ", i, ": " , d%total(), " chunks of ", n%number/d%total(), " doubles"
+      i = i + 1
       call d%next_div
    enddo
    call d%clear
