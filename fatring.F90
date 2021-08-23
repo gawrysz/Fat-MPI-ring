@@ -6,8 +6,10 @@
 program fat_ring
 
    use composition, only: factorization_t
+   use constants,   only: INT64, FP64, buflen, V_SPEED, V_STATS, T_MPI
    use divisor,     only: factored_divisor
-   use constants,   only: INT64, FP64, buflen, V_SPEED, T_MPI
+   use mpi,         only: MPI_Barrier, MPI_COMM_WORLD
+   use mpisetup,    only: parallel_init, parallel_finalize, main_proc, proc, ierr
 
    implicit none
 
@@ -23,6 +25,8 @@ program fat_ring
    character(len=buflen) :: arg, buf
    type(factorization_t) :: n
    type(factored_divisor) :: d
+
+   call parallel_init
 
    ! ToDo parse arguments
    if (command_argument_count() >= 1) then
@@ -45,20 +49,24 @@ program fat_ring
 
    call n%factorize(n_doubles)
 
-   write(*,*)"Starting fat MPI ring test with ", trim(adjustl(arg)), " ==", trim(n%factor_str), " doubles (", trim(adjustl(buf)), ")"
+   if (proc == main_proc) &
+        write(*, '(7a)')"# Starting fat MPI ring test with ", trim(adjustl(arg)), " == ", trim(n%factor_str), " doubles (", trim(adjustl(buf)), ")"
 
    call d%reset(n)
    i = 1
    do while (d%is_valid())
-      write(*,'(a,i4,a,2(i10,a))')"# Test ", i, ": " , d%total(), " chunks of ", n%number/d%total(), " doubles"
+      call MPI_Barrier(MPI_COMM_WORLD, ierr)
+      if ((proc == main_proc) .or. verbosity >= V_STATS) &
+         write(*,'(2(a,i4),a,2(i10,a))')"# Test ", i, " @", proc, ": " , d%total(), " chunks of ", n%number/d%total(), " doubles"
       i = i + 1
       call d%next_div
    enddo
    call d%clear
    call n%erase
 
-   if (.false.) i = verbosity * test_mask  ! temporarily suppress -Wunused-variable
+   if (.false.) i = test_mask  ! temporarily suppress -Wunused-variable
 
-   write(*,*)"End."
+   call parallel_finalize
+   if (proc == main_proc) write(*, '(a)')"# End."
 
 end program fat_ring
