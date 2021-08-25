@@ -10,7 +10,7 @@ module mpisetup
         &    main_proc, nproc, proc, ierr
 
    integer(kind=MPI_INTEGER_KIND), parameter :: main_proc = 0
-   integer(kind=MPI_INTEGER_KIND) :: nproc = INVALID, proc =INVALID, ierr
+   integer(kind=MPI_INTEGER_KIND) :: nproc = INVALID, proc = INVALID, ierr
 
 contains
 
