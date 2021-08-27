@@ -81,6 +81,7 @@ contains
    subroutine run(this, n_chunk)
 
       use constants, only: T_MPI_SR
+      use mpisetup,  only: tag_ub
 
       implicit none
 
@@ -91,7 +92,12 @@ contains
 
       select case(this%test_type)
          case (T_MPI_SR)
-            call sendrecv
+            if (n_chunk < tag_ub) then
+               call sendrecv
+            else
+               write(*, '(a)')"# Reached limit for MPI tags"
+               return
+            endif
          case default
             write(*,*)" Unknown test type: ", this%test_type
             call exit(-11)
