@@ -59,12 +59,15 @@ program fat_ring
    call r%init(n, test_type)
    do while (d%is_valid())
       call MPI_Barrier(MPI_COMM_WORLD, ierr)
-      if ((proc == main_proc) .or. verbosity >= V_STATS) &
-         write(*,'(2(a,i4),a,2(i10,a))')"# Test ", i, " @", proc, ": " , d%total(), " chunks of ", n%number/d%total(), " doubles"
-      call r%run(d%total())
+      if (.not. r%give_up) then
+         if ((proc == main_proc) .or. verbosity >= V_STATS) &
+              write(*, '(2(a,i4),a,2(i10,a))')"# Test ", i, " @", proc, ": " , d%total(), " chunks of ", n%number/d%total(), " doubles"
+         call r%run(d%total())
+      endif
       i = i + 1
       call d%next_div
    enddo
+   if (r%give_up .and. (proc == main_proc)) write(*, '(a)')"# Some tests have been skipped"
    call r%cleanup
    call d%clear
    call n%erase

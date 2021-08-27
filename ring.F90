@@ -12,6 +12,7 @@ module ring
       real(kind=FP64), allocatable, dimension(:) :: rbuf
       integer, private :: test_type
       integer(kind=INT64), private :: n
+      logical :: give_up
    contains
       procedure :: init
       procedure, private :: setup
@@ -25,6 +26,7 @@ contains
    subroutine init(this, n, test_type)
 
       use composition, only: factorization_t
+      use memory,      only: memcheck
 
       implicit none
 
@@ -32,12 +34,15 @@ contains
       type(factorization_t), intent(in)    :: n          ! number of doubles in the buffer
       integer,               intent(in)    :: test_type  ! test to perform
 
+      this%give_up = .false.
       this%n = n%number
       this%test_type = test_type
 
       call this%cleanup
       allocate(this%rbuf(this%n), &
            &   this%sbuf(this%n))
+
+      if (.not. memcheck()) call exit(-13)
 
    end subroutine init
 
@@ -90,10 +95,14 @@ contains
 
       call this%setup
 
-      select case(this%test_type)
+      select case (this%test_type)
          case (T_MPI_SR)
             if (n_chunk < tag_ub) then
-               call sendrecv
+               if (.not. sendrecv()) then
+                  ! write(*, '(a)')"# Too big memory usage"
+                  this%give_up = .true.
+                  return
+               endif
             else
                write(*, '(a)')"# Reached limit for MPI tags"
                return
@@ -107,27 +116,43 @@ contains
 
    contains
 
-      subroutine sendrecv
+      logical function sendrecv()
 
-         use mpi,      only: MPI_INTEGER_KIND, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, MPI_STATUSES_IGNORE
+         use memory,   only: memcheck
+         use mpi,      only: MPI_INTEGER_KIND, MPI_DOUBLE_PRECISION, MPI_LOGICAL, MPI_COMM_WORLD, &
+              &              MPI_STATUSES_IGNORE, MPI_IN_PLACE, MPI_LAND, MPI_REQUEST_NULL
          use mpisetup, only: proc, nproc, ierr
 
          implicit none
 
          integer(kind=MPI_INTEGER_KIND), allocatable, dimension(:) :: req
-         integer(kind=INT64) :: i
+         integer(kind=INT64) :: i, j
+
+         sendrecv = .true.
 
          allocate(req(2*n_chunk))
+         req = MPI_REQUEST_NULL
          do i = 1, n_chunk
             call MPI_Isend(this%sbuf(1+(i-1)*(this%n/n_chunk)), int(this%n/n_chunk, kind=MPI_INTEGER_KIND), MPI_DOUBLE_PRECISION, &
                  &         mod(nproc + proc - 1, nproc), i, MPI_COMM_WORLD, req(2*i-1), ierr)
             call MPI_Irecv(this%rbuf(1+(i-1)*(this%n/n_chunk)), int(this%n/n_chunk, kind=MPI_INTEGER_KIND), MPI_DOUBLE_PRECISION, &
                  &         mod(        proc + 1, nproc), i, MPI_COMM_WORLD, req(2*i  ), ierr)
+            if (mod(i, 2_INT64**18) == 0) then
+               sendrecv = memcheck()
+               if (.not. sendrecv) exit
+            endif
          enddo
-         call MPI_Waitall(size(req, kind=MPI_INTEGER_KIND), req, MPI_STATUSES_IGNORE, ierr)
+         call MPI_Allreduce(MPI_IN_PLACE, sendrecv, 1, MPI_LOGICAL, MPI_LAND, MPI_COMM_WORLD, ierr)
+         if (sendrecv) then
+            call MPI_Waitall(size(req, kind=MPI_INTEGER_KIND), req, MPI_STATUSES_IGNORE, ierr)
+         else
+            do j = 1, 2*i
+               call MPI_Cancel(req(j), ierr)
+            enddo
+         endif
          deallocate(req)
 
-      end subroutine sendrecv
+      end function sendrecv
 
    end subroutine run
 

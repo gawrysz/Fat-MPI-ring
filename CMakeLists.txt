@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project("fatring" LANGUAGES "Fortran")
 
-add_executable("fatring" "composition.F90" "constants.F90" "fatring.F90" "primes.F90" "mpisetup.F90" "ring.F90")
+add_executable("fatring" "composition.F90" "constants.F90" "fatring.F90" "primes.F90" "mpisetup.F90" "ring.F90" "memory.F90")
 
 set(CMAKE_Fortran_COMPILER mpif90)
 
