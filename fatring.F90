@@ -5,12 +5,13 @@
 
 program fat_ring
 
-   use composition, only: factorization_t
-   use constants,   only: INT64, FP64, buflen, V_SPEED, V_STATS, T_MPI_SR
-   use divisor,     only: factored_divisor
-   use mpi,         only: MPI_Barrier, MPI_COMM_WORLD
-   use mpisetup,    only: parallel_init, parallel_finalize, main_proc, proc, ierr
-   use ring,        only: ring_t
+   use composition,     only: factorization_t
+   use constants,       only: INT64, FP64, buflen, T_MPI_SR  !, V_SPEED, V_STATS
+   use divisor,         only: factored_divisor
+   use iso_fortran_env, only: output_unit
+   use mpi,             only: MPI_Barrier, MPI_COMM_WORLD
+   use mpisetup,        only: parallel_init, parallel_finalize, main_proc, proc, ierr
+   use ring,            only: ring_t
 
    implicit none
 
@@ -19,7 +20,7 @@ program fat_ring
 
    ! defaults for main parameters
    integer(kind=INT64), save :: n_doubles = 5**2 * 2**21  ! the amount of data to operate on
-   integer, save :: verbosity = V_SPEED, test_type = T_MPI_SR
+   integer, save :: test_type = T_MPI_SR  !, verbosity = V_SPEED
 
    ! local variables
    integer(kind=INT64) :: i
@@ -60,10 +61,11 @@ program fat_ring
    do while (d%is_valid())
       call MPI_Barrier(MPI_COMM_WORLD, ierr)
       if (.not. r%give_up) then
-         if ((proc == main_proc) .or. verbosity >= V_STATS) &
-              write(*, '(2(a,i4),a,2(i10,a))')"# Test ", i, " @", proc, ": " , d%total(), " chunks of ", n%number/d%total(), " doubles"
+         if (proc == main_proc) &
+              write(*, '(/,a,i4,a,2(i10,a))')"# Test ", i, ": " , d%total(), " chunks of ", n%number/d%total(), " doubles"
          call r%run(d%total())
       endif
+      flush(output_unit)
       i = i + 1
       call d%next_div
    enddo
@@ -72,7 +74,7 @@ program fat_ring
    call d%clear
    call n%erase
 
-   call parallel_finalize
+!   call parallel_finalize
    if (proc == main_proc) write(*, '(a)')"# End."
 
 end program fat_ring
