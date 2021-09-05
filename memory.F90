@@ -14,7 +14,7 @@ contains
    logical function memcheck()
 
       use constants, only: buflen
-      use mpisetup,  only: nproc
+      use mpisetup,  only: local_nproc
 
       implicit none
 
@@ -47,7 +47,7 @@ contains
       enddo
       close(stat_lun)
 
-      if (real(system_mem_usage) * nproc > warnlevel * real(totmem)) then
+      if (real(system_mem_usage) * local_nproc > warnlevel * real(totmem)) then
          memcheck = .false.
          write(*, '(a,i10,a,f5.1,a)')"# " // vm // " = ", system_mem_usage, ", ", 100. * real(system_mem_usage)/real(totmem), "% of RAM. Too much."
       endif
