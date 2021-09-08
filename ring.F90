@@ -101,7 +101,7 @@ contains
       integer :: i
 
       if (proc == main_proc) &
-           write(*, '(a5,2a10,5a12)') "#proc", "chunks", "doubles", "T_setup", "T_SendRecv", "T_Waitall", "T_check", "GiB/s"
+           write(*, '(a5,2a12,5a13)') "#proc", "chunks", "doubles", "T_setup", "T_SendRecv", "T_Waitall", "T_check", "MiB/s"
 
       wtime(W_START) = MPI_Wtime()
 
@@ -128,12 +128,12 @@ contains
       call this%check
       wtime(W_CHECK) = MPI_Wtime()
 
-      write(buf, '(i5,2i10)')proc, n_chunk, this%n/n_chunk
+      write(buf, '(i5,2i12)')proc, n_chunk, this%n/n_chunk
       do i = lbound(wtime, dim=1) + 1, ubound(wtime, dim=1)
-         write(buf, '(a, f12.3)') trim(buf), wtime(i) - wtime(i-1)
+         write(buf, '(a," ",f12.6)') trim(buf), wtime(i) - wtime(i-1)
       enddo
       associate (dt => wtime(W_WAITALL) - wtime(W_SETUP))
-         if (dt > 0.) write(buf, '(a, f12.3)') trim(buf), real(this%n) / 2.**27 / dt
+         if (dt > 0.) write(buf, '(a," ",f12.3)') trim(buf), real(this%n) / 2.**17 / dt
       end associate
       write(*, '(a)') trim(buf)
 
