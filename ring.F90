@@ -1,6 +1,6 @@
 module ring
 
-   use constants, only: FP64, INT64
+   use iso_fortran_env, only: REAL64, INT64
 
    implicit none
 
@@ -8,8 +8,8 @@ module ring
    public :: ring_t
 
    type :: ring_t
-      real(kind=FP64), allocatable, dimension(:) :: sbuf
-      real(kind=FP64), allocatable, dimension(:) :: rbuf
+      real(kind=REAL64), allocatable, dimension(:) :: sbuf
+      real(kind=REAL64), allocatable, dimension(:) :: rbuf
       integer, private :: test_type
       integer(kind=INT64), private :: n
       logical :: give_up
@@ -55,7 +55,7 @@ contains
       class(ring_t), intent(inout) :: this  ! object invoking type-bound procedure
 
       this%sbuf = real(proc)
-      this%rbuf = huge(1._FP64)
+      this%rbuf = huge(1._REAL64)
 
    end subroutine setup
 

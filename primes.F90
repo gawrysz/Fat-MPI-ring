@@ -4,7 +4,7 @@
 
 module primes_utils
 
-   use constants, only: INT64
+   use iso_fortran_env, only: INT64
 
    implicit none
 

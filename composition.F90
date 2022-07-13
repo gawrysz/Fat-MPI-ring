@@ -17,7 +17,7 @@
 
 module singleprime
 
-   use constants, only: INT64
+   use iso_fortran_env, only: INT64
 
    implicit none
 
@@ -53,8 +53,8 @@ end module singleprime
 
 module setofprimes
 
-   use constants,   only: INT64
-   use singleprime, only: component
+   use iso_fortran_env, only: INT64
+   use singleprime,     only: component
 
    implicit none
 
@@ -167,7 +167,7 @@ contains
 
    subroutine next_div(this)
 
-      use constants, only: INT64
+      use iso_fortran_env, only: INT64
 
       implicit none
 
@@ -221,9 +221,10 @@ end module divisor
 
 module composition
 
-   use constants,   only: INT64, buflen
-   use setofprimes, only: component_set
-   use singleprime, only: component
+   use constants,       only: buflen
+   use iso_fortran_env, only: INT64
+   use setofprimes,     only: component_set
+   use singleprime,     only: component
 
    implicit none
 

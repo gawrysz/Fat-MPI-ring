@@ -6,9 +6,9 @@
 program fat_ring
 
    use composition,     only: factorization_t
-   use constants,       only: INT64, FP64, buflen, T_MPI_SR  !, V_SPEED, V_STATS
+   use constants,       only: buflen, T_MPI_SR  !, V_SPEED, V_STATS
    use divisor,         only: factored_divisor
-   use iso_fortran_env, only: output_unit
+   use iso_fortran_env, only: output_unit, INT64, REAL64
    use mpi,             only: MPI_Barrier, MPI_COMM_WORLD
    use mpisetup,        only: parallel_init, parallel_finalize, main_proc, proc, ierr
    use ring,            only: ring_t
@@ -16,7 +16,7 @@ program fat_ring
    implicit none
 
    ! constants
-   real(kind=FP64) :: two = 2_FP64
+   real(kind=REAL64) :: two = 2_REAL64
 
    ! defaults for main parameters
    integer(kind=INT64), save :: n_doubles = 5**2 * 2**21  ! the amount of data to operate on

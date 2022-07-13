@@ -6,8 +6,9 @@ module constants
 
    public
 
-   integer, parameter :: INT64 = selected_int_kind(16)
-   integer, parameter :: FP64 = selected_real_kind(12)
+   ! Not needed, provided by iso_fortran_env
+   ! integer, parameter :: I64 = selected_int_kind(16)
+   ! integer, parameter :: FP64 = selected_real_kind(12)
 
    integer, parameter :: INVALID = -1
 

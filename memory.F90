@@ -1,6 +1,7 @@
 module memory
 
-   use constants, only: INVALID, INT64
+   use constants,       only: INVALID
+   use iso_fortran_env, only: INT64
 
    implicit none
 
