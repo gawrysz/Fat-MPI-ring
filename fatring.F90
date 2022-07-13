@@ -76,7 +76,7 @@ program fat_ring
    call d%clear
    call n%erase
 
-!   call parallel_finalize
+   call parallel_finalize
    if (proc == main_proc) write(*, '(a)')"# End."
 
 end program fat_ring
