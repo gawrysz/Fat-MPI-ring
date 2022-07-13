@@ -17,9 +17,11 @@ program fat_ring
 
    ! constants
    real(kind=REAL64) :: two = 2_REAL64
+   integer :: n_chunk_max = 2**15  ! Skip too big tests due to excessive allocations of memory inside MPI and generally slow execution
 
    ! defaults for main parameters
-   integer(kind=INT64), save :: n_doubles = 5**2 * 2**21  ! the amount of data to operate on
+!   integer(kind=INT64), save :: n_doubles = 5**2 * 2**19  ! the amount of data to operate on (approx. 100 MB per process)
+   integer(kind=INT64), save :: n_doubles = 5**2 * 2**15  ! the amount of data to operate on (approx. 6 MB per process)
    integer, save :: test_type = T_MPI_SR  !, verbosity = V_SPEED
 
    ! local variables
@@ -57,7 +59,7 @@ program fat_ring
 
    call d%reset(n)
    i = 1
-   call r%init(n, test_type)
+   call r%init(n, test_type, n_chunk_max)
    do while (d%is_valid())
       call MPI_Barrier(MPI_COMM_WORLD, ierr)
       if (.not. r%give_up) then

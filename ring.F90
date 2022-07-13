@@ -11,6 +11,7 @@ module ring
       real(kind=REAL64), allocatable, dimension(:) :: sbuf
       real(kind=REAL64), allocatable, dimension(:) :: rbuf
       integer, private :: test_type
+      integer, private :: n_chunk_max
       integer(kind=INT64), private :: n
       logical :: give_up
    contains
@@ -23,7 +24,7 @@ module ring
 
 contains
 
-   subroutine init(this, n, test_type)
+   subroutine init(this, n, test_type, chunk_max)
 
       use composition, only: factorization_t
       use memory,      only: memcheck
@@ -33,10 +34,12 @@ contains
       class(ring_t),         intent(inout) :: this       ! object invoking type-bound procedure
       type(factorization_t), intent(in)    :: n          ! number of doubles in the buffer
       integer,               intent(in)    :: test_type  ! test to perform
+      integer,               intent(in)    :: chunk_max  ! maximum allowed fragmentation
 
       this%give_up = .false.
       this%n = n%number
       this%test_type = test_type
+      this%n_chunk_max = chunk_max
 
       call this%cleanup
       allocate(this%rbuf(this%n), &
@@ -149,9 +152,8 @@ contains
 
          integer(kind=MPI_INTEGER_KIND), allocatable, dimension(:) :: req
          integer(kind=INT64) :: i
-         integer, parameter :: n_chunk_max = 2**20  ! Skip too big tests due to excessive allocations of memory inside MPI
 
-         sendrecv = (n_chunk <= n_chunk_max)
+         sendrecv = (n_chunk <= this%n_chunk_max)
          if (.not. sendrecv) return
 
          allocate(req(2*n_chunk))
