@@ -1,3 +1,6 @@
+! Monitor the usage of RAM,
+! Prevent taking too much of it.
+
 module memory
 
    use constants,       only: INVALID
@@ -12,6 +15,9 @@ module memory
 
 contains
 
+   ! Warn when the program eats too much memory.
+   ! Works on Linux only.
+
    logical function memcheck()
 
       use constants, only: buflen
@@ -24,7 +30,7 @@ contains
       character(len=pidlen) :: pid_char
       character(len=7) :: vm = "VmData:"
       integer :: stat_lun, io, system_mem_usage
-      real, parameter :: warnlevel = 0.5
+      real, parameter :: warnlevel = 0.5  ! Don't eat more than half of RAM
 
       if (totmem <= INVALID) call find_totmem
       memcheck = (totmem > INVALID)
@@ -55,6 +61,9 @@ contains
 
    end function memcheck
 
+   ! Find the total amount of availabe RAM.
+   ! Works on Linux only.
+
    subroutine find_totmem
 
       use constants, only: buflen
@@ -81,6 +90,9 @@ contains
       close(stat_lun)
 
    end subroutine find_totmem
+
+   ! Check if given file exists.
+   ! Will be useful if one ports this code to systems other than Linux.
 
    logical function file_exists(fname)
 

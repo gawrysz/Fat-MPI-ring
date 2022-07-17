@@ -1,3 +1,5 @@
+! Take care of the parallel environment.
+
 module mpisetup
 
    use constants, only: INVALID
@@ -17,6 +19,10 @@ module mpisetup
    character(len=MPI_MAX_PROCESSOR_NAME), protected :: myname
 
 contains
+
+   ! Initialize the MPI,
+   ! find out ranks and nodes,
+   ! say "Hello".
 
    subroutine parallel_init
 
@@ -48,6 +54,8 @@ contains
       if (proc == main_proc) write(*,'()')
 
    end subroutine parallel_init
+
+   ! Clean up.
 
    subroutine parallel_finalize
 

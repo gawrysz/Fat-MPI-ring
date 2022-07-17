@@ -1,3 +1,5 @@
+! Actual executor of the ring communication.
+
 module ring
 
    use iso_fortran_env, only: REAL64, INT64
@@ -24,6 +26,8 @@ module ring
 
 contains
 
+   ! Initialize buffers.
+
    subroutine init(this, n, test_type, chunk_max)
 
       use composition, only: factorization_t
@@ -49,6 +53,8 @@ contains
 
    end subroutine init
 
+   ! Put some values into buffers.
+
    subroutine setup(this)
 
       use mpisetup, only: proc
@@ -61,6 +67,8 @@ contains
       this%rbuf = huge(1._REAL64)
 
    end subroutine setup
+
+   ! Check if the received values are correct.
 
    subroutine check(this)
 
@@ -75,6 +83,8 @@ contains
 
    end subroutine check
 
+   ! Clean up.
+
    subroutine cleanup(this)
 
       implicit none
@@ -85,6 +95,8 @@ contains
       if (allocated(this%sbuf)) deallocate(this%sbuf)
 
    end subroutine cleanup
+
+   ! Do the communication in the specified mode.
 
    subroutine run(this, n_chunk)
 
@@ -141,6 +153,8 @@ contains
       write(*, '(a)') trim(buf)
 
    contains
+
+      ! Use Isend/Irecv, the default mode.
 
       logical function sendrecv()
 

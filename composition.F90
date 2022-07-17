@@ -15,6 +15,8 @@
 ! For a list of Highly Composite Numbers, see e.g.:
 ! http://wwwhomes.uni-bielefeld.de/achim/highly.txt
 
+! Container for a single prime and its power, such as 2**13.
+
 module singleprime
 
    use iso_fortran_env, only: INT64
@@ -32,6 +34,8 @@ module singleprime
    end type component
 
 contains
+
+   ! Return the value of own prime raised to stored power.
 
    integer(kind=INT64) pure function val(this)
 
@@ -51,6 +55,8 @@ contains
 
 end module singleprime
 
+! A set of primes with powers to store a factorization af an integer.
+
 module setofprimes
 
    use iso_fortran_env, only: INT64
@@ -68,6 +74,8 @@ module setofprimes
    end type component_set
 
 contains
+
+   ! Reconstruct the number from its factorization.
 
    integer(kind=INT64) pure function total(this)
 
@@ -97,6 +105,9 @@ contains
 
 end module setofprimes
 
+! Scan through two-factor decompositions of a number factored to primes.
+! For big HCNs a more efficient method would be cool to be implemented.
+
 module divisor
 
    use setofprimes, only: component_set
@@ -118,6 +129,8 @@ module divisor
 
 contains
 
+   ! First factor: 1
+
    subroutine reset(this, f)
 
       implicit none
@@ -135,6 +148,9 @@ contains
       this%reference%factors = f%factors
 
    end subroutine reset
+
+   ! Find another factor.
+   ! If one repeats this, it will scan through all possible factors.
 
    subroutine next(this)
 
@@ -165,6 +181,8 @@ contains
 
    end subroutine next
 
+   ! Find next factor greater than current one.
+
    subroutine next_div(this)
 
       use iso_fortran_env, only: INT64
@@ -193,6 +211,8 @@ contains
 
    end subroutine next_div
 
+   ! Clean up.
+
    subroutine clear(this)
 
       implicit none
@@ -203,6 +223,8 @@ contains
       if (allocated(this%reference%factors)) deallocate(this%reference%factors)
 
    end subroutine clear
+
+   ! Check validity of current object.
 
    logical function is_valid(this)
 
@@ -218,6 +240,8 @@ contains
    end function is_valid
 
 end module divisor
+
+! Factorize given number
 
 module composition
 
@@ -241,8 +265,12 @@ module composition
 
 contains
 
+   ! Factorize given number.
+   ! This routine intentionally accepts only composite numbers and refuses to continue with primes.
+
    subroutine factorize(this, n)
 
+      !use mpisetup,     only: proc, main_proc
       use primes_utils, only: primes_t
 
       implicit none
@@ -259,7 +287,7 @@ contains
       ! Restrict the test to nicely divisible numbers to avoid computing excessively large list of primes.
       ! Calling primes%sieve(this%number) will be perfectly correct but would take long time for GB-sized buffer.
       call primes%sieve(int(sqrt(real(this%number)), kind=INT64))
-      !call primes%print
+      !if (proc == main_proc) call primes%print
 
       allocate(this%factors(0))
       auxn = this%number
@@ -295,6 +323,8 @@ contains
       call primes%erase
 
    end subroutine factorize
+
+   ! Clean up.
 
    subroutine erase(this)
 

@@ -23,7 +23,7 @@ module primes_utils
 
 contains
 
-! Eratosthenes sieve
+! Eratosthenes sieve.
 !
 ! On first call it creates a table of primes up to a given number (does an initialization).
 ! On subsequent calls it may extend the table with primes, if required.
@@ -62,7 +62,7 @@ contains
 
    end subroutine sieve
 
-! Print the table of found primes
+! Print the table of found primes.
 
    subroutine print(this)
 
@@ -75,7 +75,7 @@ contains
 
    end subroutine print
 
-! Restore initial state
+! Restore initial state.
 
    subroutine erase(this)
 
