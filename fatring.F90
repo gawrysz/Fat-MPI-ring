@@ -30,6 +30,8 @@ program fat_ring
    type(factorization_t) :: n
    type(factored_divisor) :: d
    type(ring_t) :: r
+   character(len=*), parameter :: usage_str = "Usage: fatring [number_of_doubles [maximum_number_of_chunks]]"
+
 
    call parallel_init
 
@@ -38,7 +40,10 @@ program fat_ring
       call get_command_argument(1, arg)
       read(arg, '(i30)') i ! expect overflow on some 19-digit numbers but who cares?
       if (i <= 0) then
-         if (proc == main_proc) write(*,*)"Invalid input for size (non-negative integer expected)"
+         if (proc == main_proc) then
+            write(*,*) usage_str
+            write(*,*)"Invalid input for size (non-negative integer expected)"
+         end if
          call exit(-23)
       end if
       n_doubles = i
@@ -48,7 +53,10 @@ program fat_ring
       call get_command_argument(2, arg)
       read(arg, '(i30)') i ! expect overflow on some 19-digit numbers but who cares?
       if (i <= 0) then
-         if (proc == main_proc) write(*,*)"Invalid input for chunks (non-negative integer expected)"
+         if (proc == main_proc) then
+            write(*,*) usage_str
+            write(*,*)"Invalid input for chunks (non-negative integer expected)"
+         end if
          call exit(-29)
       end if
       n_chunk_max = i
@@ -79,7 +87,7 @@ program fat_ring
    call r%init(n, test_type, n_chunk_max)
    do while (d%is_valid())
       call MPI_Barrier(MPI_COMM_WORLD, ierr)
-      if (.not. r%give_up) then
+      if (.not. r%give_up .and. (d%total() <= n_chunk_max)) then
          if (proc == main_proc) &
               write(*, '(/,a,i4,a,2(i10,a))')"# Test ", i, ": " , d%total(), " chunk" // trim(merge("s", " ", d%total()>1)) // " of ", n%number/d%total(), " doubles"
          call r%run(d%total())
