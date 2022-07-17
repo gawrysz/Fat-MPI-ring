@@ -10,7 +10,7 @@ module mpisetup
         &    main_proc, nproc, proc, local_nproc, myname, ierr, tag_ub
 
    integer(kind=MPI_INTEGER_KIND), parameter :: main_proc = 0
-   integer(kind=MPI_INTEGER_KIND), protected :: nproc = INVALID, proc = INVALID, local_nproc = INVALID
+   integer(kind=MPI_INTEGER_KIND), protected :: nproc = INVALID, proc = INVALID, local_nproc = INVALID, local_proc = INVALID
    integer(kind=MPI_INTEGER_KIND), protected :: local_comm
    integer(kind=MPI_INTEGER_KIND)            :: ierr
    integer(kind=MPI_ADDRESS_KIND), protected :: tag_ub = INVALID
@@ -29,17 +29,23 @@ contains
       integer(kind=MPI_INTEGER_KIND) :: key, mynamelen
 
       call MPI_Init(ierr)
+
       call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierr)
       call MPI_Comm_rank(MPI_COMM_WORLD, proc, ierr)
       call MPI_Comm_get_attr(MPI_COMM_WORLD, MPI_TAG_UB, tag_ub, flag, ierr)
 
       call MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, key, MPI_INFO_NULL, local_comm, ierr)
       call MPI_Comm_size(local_comm, local_nproc, ierr)
+      call MPI_Comm_rank(local_comm, local_proc, ierr)
       call MPI_Get_processor_name(myname, mynamelen, ierr)
 
       if (.not. flag) write(*,*)"Problem with MPI_TAG_UB: ", tag_ub, " ???"
 
+      write(*,'(2(a,i4),2a,2(a,i4))')"Hello from ", proc, "/", nproc, " @", trim(myname), ":", local_proc, "/", local_nproc
+
       call MPI_Barrier(MPI_COMM_WORLD, ierr)
+
+      if (proc == main_proc) write(*,'()')
 
    end subroutine parallel_init
 
