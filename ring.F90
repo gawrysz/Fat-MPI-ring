@@ -24,6 +24,11 @@ module ring
       procedure :: cleanup
    end type ring_t
 
+   enum, bind(C)
+      enumerator :: F_ZERO, F_PROC, F_FANCY
+   end enum
+   integer, parameter :: fillstyle = F_FANCY
+
 contains
 
    ! Initialize buffers.
@@ -63,9 +68,22 @@ contains
 
       class(ring_t), intent(inout) :: this  ! object invoking type-bound procedure
 
-      this%sbuf = real(proc)
-      this%rbuf = huge(1._REAL64)
+      integer(kind=INT64) :: i
 
+      select case (fillstyle)
+         case (F_ZERO)
+            this%sbuf = 0.
+         case (F_PROC)
+            this%sbuf = real(proc)
+         case (F_FANCY)
+            do i = lbound(this%sbuf, 1), ubound(this%sbuf, 1)
+               this%sbuf(i) = real(mod(proc * i, 17_INT64))
+            end do
+         case default
+            write(*,*)"[ring_t:setup] fillstyle not implemented"
+            call exit(-17)
+      end select
+      this%rbuf = huge(1._REAL64)
    end subroutine setup
 
    ! Check if the received values are correct.
@@ -78,8 +96,25 @@ contains
 
       class(ring_t), intent(in) :: this  ! object invoking type-bound procedure
 
-      if (any(this%rbuf /= real(mod(proc + 1, nproc)))) &
-           write(*,*)"### ", count(this%rbuf /= real(mod(proc + 1, nproc))), "/", size(this%rbuf), " wrong values @", proc
+      integer(kind=INT64) :: i
+      integer :: cnt
+
+      cnt = 0
+      select case (fillstyle)
+         case (F_ZERO)
+            cnt = count(this%rbuf /= 0.)
+         case (F_PROC)
+            cnt = count(this%rbuf /= real(mod(proc + 1, nproc)))
+         case (F_FANCY)
+            do i = lbound(this%rbuf, 1), ubound(this%rbuf, 1)
+               if (this%rbuf(i) /= real(mod(mod(proc + 1, nproc) * i, 17_INT64))) cnt = cnt + 1
+            end do
+         case default
+            write(*,*)"[ring_t:check] fillstyle not implemented"
+            call exit(-19)
+      end select
+      if (cnt > 0) &
+           write(*,*)"### ", cnt, "/", size(this%rbuf), " wrong values @", proc
 
    end subroutine check
 
