@@ -17,7 +17,7 @@ program fat_ring
 
    ! constants
    real(kind=REAL64) :: two = 2_REAL64
-   integer :: n_chunk_max = 2**15  ! Skip too big tests due to excessive allocations of memory inside MPI and generally slow execution
+   integer(kind=INT64), save :: n_chunk_max = 2**15  ! Skip too big tests due to excessive allocations of memory inside MPI and generally slow execution
 
    ! defaults for main parameters
 !   integer(kind=INT64), save :: n_doubles = 5**2 * 2**19  ! the amount of data to operate on (approx. 100 MB per process)
@@ -37,7 +37,21 @@ program fat_ring
    if (command_argument_count() >= 1) then
       call get_command_argument(1, arg)
       read(arg, '(i30)') i ! expect overflow on some 19-digit numbers but who cares?
-      if (i > 0) n_doubles = i
+      if (i <= 0) then
+         if (proc == main_proc) write(*,*)"Invalid input for size (non-negative integer expected)"
+         call exit(-23)
+      end if
+      n_doubles = i
+   endif
+
+   if (command_argument_count() >= 2) then
+      call get_command_argument(2, arg)
+      read(arg, '(i30)') i ! expect overflow on some 19-digit numbers but who cares?
+      if (i <= 0) then
+         if (proc == main_proc) write(*,*)"Invalid input for chunks (non-negative integer expected)"
+         call exit(-29)
+      end if
+      n_chunk_max = i
    endif
 
    write(arg, *) n_doubles
@@ -54,8 +68,11 @@ program fat_ring
 
    call n%factorize(n_doubles)
 
+   ! Need something better
+   !flush(output_unit)
+   !call MPI_Barrier(MPI_COMM_WORLD, ierr)
    if (proc == main_proc) &
-        write(*, '(7a)')"# Starting fat MPI ring test with ", trim(adjustl(arg)), " == ", trim(n%factor_str), " doubles (", trim(adjustl(buf)), ")"
+        write(*, '(/,7a)')"# Starting fat MPI ring test with ", trim(adjustl(arg)), " == ", trim(n%factor_str), " doubles (", trim(adjustl(buf)), ")"
 
    call d%reset(n)
    i = 1
@@ -64,7 +81,7 @@ program fat_ring
       call MPI_Barrier(MPI_COMM_WORLD, ierr)
       if (.not. r%give_up) then
          if (proc == main_proc) &
-              write(*, '(/,a,i4,a,2(i10,a))')"# Test ", i, ": " , d%total(), " chunks of ", n%number/d%total(), " doubles"
+              write(*, '(/,a,i4,a,2(i10,a))')"# Test ", i, ": " , d%total(), " chunk" // trim(merge("s", " ", d%total()>1)) // " of ", n%number/d%total(), " doubles"
          call r%run(d%total())
       endif
       flush(output_unit)

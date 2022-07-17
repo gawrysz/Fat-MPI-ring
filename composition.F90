@@ -193,6 +193,11 @@ contains
 
       integer(kind=INT64) :: cur, nxt
 
+      if (this%total() == this%reference%total()) then  ! no point in further searching
+         call this%clear
+         return
+      end if
+
       cur = this%total()
       nxt = huge(1_INT64)
       this%factors(:)%power = 0
@@ -266,7 +271,7 @@ module composition
 contains
 
    ! Factorize given number.
-   ! This routine intentionally accepts only composite numbers and refuses to continue with primes.
+   ! This routine intentionally accepts only composite numbers and refuses to continue with primes, except for small ones.
 
    subroutine factorize(this, n)
 
@@ -282,11 +287,12 @@ contains
       integer :: i
       integer(kind=INT64) :: auxn
       character(len=buflen) :: n1, n2
+      integer(kind=INT64), parameter :: max_allowed_noncomposite = 100  ! prime sizes up to 97 are allowed
 
       this%number = n
       ! Restrict the test to nicely divisible numbers to avoid computing excessively large list of primes.
       ! Calling primes%sieve(this%number) will be perfectly correct but would take long time for GB-sized buffer.
-      call primes%sieve(int(sqrt(real(this%number)), kind=INT64))
+      call primes%sieve(max(int(sqrt(real(this%number)), kind=INT64), max_allowed_noncomposite))
       !if (proc == main_proc) call primes%print
 
       allocate(this%factors(0))

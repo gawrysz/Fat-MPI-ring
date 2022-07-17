@@ -51,8 +51,6 @@ contains
 
       call MPI_Barrier(MPI_COMM_WORLD, ierr)
 
-      if (proc == main_proc) write(*,'()')
-
    end subroutine parallel_init
 
    ! Clean up.

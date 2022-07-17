@@ -13,7 +13,7 @@ module ring
       real(kind=REAL64), allocatable, dimension(:) :: sbuf
       real(kind=REAL64), allocatable, dimension(:) :: rbuf
       integer, private :: test_type
-      integer, private :: n_chunk_max
+      integer(kind=INT64), private :: n_chunk_max
       integer(kind=INT64), private :: n
       logical :: give_up
    contains
@@ -43,7 +43,7 @@ contains
       class(ring_t),         intent(inout) :: this       ! object invoking type-bound procedure
       type(factorization_t), intent(in)    :: n          ! number of doubles in the buffer
       integer,               intent(in)    :: test_type  ! test to perform
-      integer,               intent(in)    :: chunk_max  ! maximum allowed fragmentation
+      integer(kind=INT64),   intent(in)    :: chunk_max  ! maximum allowed fragmentation
 
       this%give_up = .false.
       this%n = n%number
