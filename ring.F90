@@ -35,18 +35,17 @@ contains
 
    subroutine init(this, n, test_type, chunk_max)
 
-      use composition, only: factorization_t
       use memory,      only: memcheck
 
       implicit none
 
-      class(ring_t),         intent(inout) :: this       ! object invoking type-bound procedure
-      type(factorization_t), intent(in)    :: n          ! number of doubles in the buffer
-      integer,               intent(in)    :: test_type  ! test to perform
-      integer(kind=INT64),   intent(in)    :: chunk_max  ! maximum allowed fragmentation
+      class(ring_t),       intent(inout) :: this       ! object invoking type-bound procedure
+      integer(kind=INT64), intent(in)    :: n          ! number of doubles in the buffer
+      integer,             intent(in)    :: test_type  ! test to perform
+      integer(kind=INT64), intent(in)    :: chunk_max  ! maximum allowed fragmentation
 
       this%give_up = .false.
-      this%n = n%number
+      this%n = n
       this%test_type = test_type
       this%n_chunk_max = chunk_max
 
