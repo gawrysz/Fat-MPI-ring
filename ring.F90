@@ -134,7 +134,7 @@ contains
 
    subroutine run(this, n_chunk)
 
-      use constants, only: T_MPI_SR, buflen
+      use constants, only: T_MPI_SR
       use mpi,       only: MPI_Wtime
       use mpisetup,  only: tag_ub, proc, main_proc
 
@@ -146,8 +146,6 @@ contains
          enumerator :: W_START, W_SETUP, W_SR, W_WAITALL, W_CHECK
       end enum
       double precision, dimension(W_START:W_CHECK) :: wtime
-      character(len=buflen) :: buf
-      integer :: i
 
       if (proc == main_proc) &
            write(*, '(a5,2a12,5a13)') "#proc", "chunks", "doubles", "T_setup", "T_SendRecv", "T_Waitall", "T_check", "MiB/s"
@@ -177,16 +175,74 @@ contains
       call this%check
       wtime(W_CHECK) = MPI_Wtime()
 
-      write(buf, '(i5,2i12)')proc, n_chunk, this%n/n_chunk
-      do i = lbound(wtime, dim=1) + 1, ubound(wtime, dim=1)
-         write(buf, '(a," ",f12.6)') trim(buf), wtime(i) - wtime(i-1)
-      enddo
-      associate (dt => wtime(W_WAITALL) - wtime(W_SETUP))
-         if (dt > 0.) write(buf, '(a," ",f12.3)') trim(buf), real(this%n) / 2.**17 / dt
-      end associate
-      write(*, '(a)') trim(buf)
+      call print_wtime
 
    contains
+
+      ! Collect wtime on main_proc, print it in order and also print extrema
+
+      subroutine print_wtime
+
+         use constants, only: buflen
+         use mpi,       only: MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, MPI_STATUS_IGNORE
+         use mpisetup,  only: main_proc, nproc, proc, ierr
+
+         implicit none
+
+         integer :: p
+         character(len=buflen) :: buf
+         double precision, dimension(W_START:W_CHECK) :: p_wtime, dt_max, dt_min, dt
+         integer :: i
+
+         if (proc == main_proc) then
+            dt_min(:) = huge(1.)
+            dt_max(:) = -huge(1.)
+            do p = main_proc, nproc-1
+               if (p == main_proc) then
+                  p_wtime(:) = wtime(:)
+               else
+                  call MPI_Recv(p_wtime, size(p_wtime), MPI_DOUBLE_PRECISION, p, p, MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+               end if
+
+               dt(lbound(p_wtime, dim=1)) = p_wtime(W_WAITALL) - p_wtime(W_SETUP)
+               do i = lbound(p_wtime, dim=1) + 1, ubound(p_wtime, dim=1)
+                  dt(i) = p_wtime(i) - p_wtime(i-1)
+               enddo
+
+               dt_min(:) = min(dt_min(:), dt(:))
+               dt_max(:) = max(dt_max(:), dt(:))
+
+               write(buf, '(i5,2i12)')p, n_chunk, this%n/n_chunk
+               call pr_wt(dt, buf)
+            end do
+            write(buf, '(a5,2i12)')"min", n_chunk, this%n/n_chunk
+            call pr_wt(dt_min, buf)
+            write(buf, '(a5,2i12)')"max", n_chunk, this%n/n_chunk
+            call pr_wt(dt_max, buf)
+         else
+            call MPI_Send(wtime, size(wtime), MPI_DOUBLE_PRECISION, main_proc, proc, MPI_COMM_WORLD, ierr)
+         end if
+
+      end subroutine print_wtime
+
+      ! Extracted for convenience
+
+      subroutine pr_wt(dt, buf)
+
+         implicit none
+
+         double precision, dimension(W_START:W_CHECK), intent(in)    :: dt
+         character(len=*),                             intent(inout) :: buf
+
+         integer :: i
+
+         do i = lbound(dt, dim=1) + 1, ubound(dt, dim=1)
+            write(buf, '(a," ",f12.6)') trim(buf), dt(i)
+         enddo
+         if (dt(lbound(dt, dim=1)) > 0.) write(buf, '(a," ",f12.3)') trim(buf), real(this%n) / 2.**17 / dt(lbound(dt, dim=1))
+         write(*, '(a)') trim(buf)
+
+      end subroutine pr_wt
 
       ! Use Isend/Irecv, the default mode.
 
