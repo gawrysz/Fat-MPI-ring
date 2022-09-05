@@ -273,35 +273,28 @@ contains
    ! Factorize given number.
    ! This routine intentionally accepts only composite numbers and refuses to continue with primes, except for small ones.
 
-   subroutine factorize(this, n)
+   subroutine factorize(this, n, p)
 
-      !use mpisetup,     only: proc, main_proc
       use primes_utils, only: primes_t
 
       implicit none
 
       class(factorization_t), intent(inout) :: this  ! object invoking type-bound procedure
       integer(kind=INT64),    intent(in)    :: n     ! the number to factorize
+      type(primes_t),         intent(in)    :: p     ! provided list of allowed prime divisors
 
-      type(primes_t) :: primes
       integer :: i
       integer(kind=INT64) :: auxn
       character(len=buflen) :: n1, n2
-      integer(kind=INT64), parameter :: max_allowed_noncomposite = 100  ! prime sizes up to 97 are allowed
 
       this%number = n
-      ! Restrict the test to nicely divisible numbers to avoid computing excessively large list of primes.
-      ! Calling primes%sieve(this%number) will be perfectly correct but would take long time for GB-sized buffer.
-      call primes%sieve(max(int(sqrt(real(this%number)), kind=INT64), max_allowed_noncomposite))
-      !if (proc == main_proc) call primes%print
-
       allocate(this%factors(0))
       auxn = this%number
-      do i = lbound(primes%tab, dim=1), ubound(primes%tab, dim=1)
-         if (mod(auxn, primes%tab(i)) == 0) then
-            this%factors = [ this%factors, component(primes%tab(i), 0) ]
-            do while (mod(auxn, primes%tab(i)) == 0)
-               auxn = auxn / primes%tab(i)
+      do i = lbound(p%tab, dim=1), ubound(p%tab, dim=1)
+         if (mod(auxn, p%tab(i)) == 0) then
+            this%factors = [ this%factors, component(p%tab(i), 0) ]
+            do while (mod(auxn, p%tab(i)) == 0)
+               auxn = auxn / p%tab(i)
                this%factors(ubound(this%factors, dim=1))%power = this%factors(ubound(this%factors, dim=1))%power + 1
             enddo
          endif
@@ -325,8 +318,6 @@ contains
          write(*,*)"Decomposition failed: ", this%total(), " /= ", this%number
          call exit(-3)
       endif
-
-      call primes%erase
 
    end subroutine factorize
 

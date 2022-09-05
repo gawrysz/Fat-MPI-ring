@@ -10,6 +10,7 @@ program fat_ring
    use divisor,         only: factored_divisor
    use iso_fortran_env, only: output_unit, INT64, REAL64
    use mpisetup,        only: parallel_init, parallel_finalize, main_proc, proc
+   use primes_utils,    only: primes_t
 
    implicit none
 
@@ -30,6 +31,8 @@ program fat_ring
    type(factorization_t) :: n1, n2
    type(factored_divisor) :: d1, d2
    character(len=*), parameter :: usage_str = "Usage: fatring [number_of_doubles [maximum_number_of_chunks [minimum_sample_distance]]"
+   type(primes_t) :: primes
+   integer(kind=INT64), parameter :: max_allowed_noncomposite = 1000000  ! prime sizes of the buffer up to 999983 are allowed
 
    call parallel_init
 
@@ -85,8 +88,15 @@ program fat_ring
          write(buf, '(i20,a)') int(n_doubles * two**3, kind=INT64), " B"
    end select
 
-   !  Scan triangular region of chunk numer and sizes within the limits, try to cover the accessible area as evenly as possible
-   call n1%factorize(n_doubles)
+   ! Restrict the test to nicely divisible numbers to avoid computing excessively large list of primes.
+   ! Calling primes%sieve(n_doubles) will be perfectlyalways correct but would take long time for GB-sized buffer.
+   ! call primes%sieve(n_doubles)
+   ! This will cause failure in factorize() for prime-sized buffer larger than max_allowed_noncomposite
+   call primes%sieve(max(int(sqrt(real(n_doubles)), kind=INT64), min(n_doubles, max_allowed_noncomposite)))
+   ! if (proc == main_proc) call primes%print
+
+   !  Scan triangular region of chunk numbers and sizes within the limits, try to cover the accessible area evenly (in a relatively cheap way)
+   call n1%factorize(n_doubles, primes)
    ! Need something better
    !flush(output_unit)
    !call MPI_Barrier(MPI_COMM_WORLD, ierr)
@@ -100,7 +110,7 @@ program fat_ring
    do while (d1%is_valid())
       ! Let's scan through all triplets that make n_doubles and its divisors but skip some of them to limit density of the points
       if (real(d1%total()) >= minskip * p1) then
-         call n2%factorize(n1%number/d1%total())
+         call n2%factorize(n1%number/d1%total(), primes)
          p2 = 0
          call d2%reset(n2)
          do while (d2%is_valid())
@@ -125,6 +135,7 @@ program fat_ring
    enddo
    call d1%clear
    call n1%erase
+   call primes%erase
 
    call parallel_finalize
    if (proc == main_proc) write(*, '(a)')"# End."

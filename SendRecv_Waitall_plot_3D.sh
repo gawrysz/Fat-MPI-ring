@@ -2,6 +2,7 @@
 
 if [ $# != 1 ] ; then
 	echo "Usage: $0 file_from_fatring"
+	echo "You can also try $0 filtered through 'max'"
 	exit 1
 fi
 

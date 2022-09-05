@@ -70,7 +70,7 @@ contains
 
       class(primes_t), intent(inout) :: this  ! object invoking type-bound procedure
 
-      write(*, '(a,i5,a,i9,a)') "There are ", size(this%tab), " prime numbers smaller than", this%max,":"
+      write(*, '(a,i9,a,i11,a)') "There are ", size(this%tab), " prime numbers smaller than", this%max,":"
       print "(15i11)", this%tab
 
    end subroutine print

@@ -237,9 +237,9 @@ contains
          integer :: i
 
          do i = lbound(dt, dim=1) + 1, ubound(dt, dim=1)
-            write(buf, '(a," ",f12.6)') trim(buf), dt(i)
+            write(buf, '(a," ",f13.7)') trim(buf), dt(i)
          enddo
-         if (dt(lbound(dt, dim=1)) > 0.) write(buf, '(a," ",f12.3)') trim(buf), real(this%n) / 2.**17 / dt(lbound(dt, dim=1))
+         if (dt(lbound(dt, dim=1)) > 0.) write(buf, '(a," ",f13.3)') trim(buf), real(this%n) / 2.**17 / dt(lbound(dt, dim=1))
          write(*, '(a)') trim(buf)
 
       end subroutine pr_wt
