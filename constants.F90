@@ -19,7 +19,7 @@ module constants
       enumerator :: V_NONE = 0, V_SPEED, V_STATS, V_DETAILED  ! verbosity levels
    end enum
    enum, bind(C)
-      enumerator :: T_MPI_SR, T_MPI_G, T_MPI_P, T_MPI_SHMEM, T_COARRAY, T_OMP  ! test types to perform
+      enumerator :: T_MPI_SR, T_MPI_GET1, T_MPI_PUT1, T_MPI_GETN, T_MPI_PUTN, T_MPI_SHMEM, T_COARRAY, T_OMP  ! test types to perform
    end enum
 
 end module constants

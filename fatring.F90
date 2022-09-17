@@ -6,7 +6,7 @@
 program fat_ring
 
    use composition,     only: factorization_t
-   use constants,       only: buflen, T_MPI_SR  !, V_SPEED, V_STATS
+   use constants,       only: buflen, T_MPI_SR, T_MPI_GET1, T_MPI_PUT1, T_MPI_GETN, T_MPI_PUTN, T_MPI_SHMEM  !, V_SPEED, V_STATS
    use divisor,         only: factored_divisor
    use iso_fortran_env, only: output_unit, INT64, REAL64
    use mpisetup,        only: parallel_init, parallel_finalize, main_proc, proc
@@ -18,10 +18,13 @@ program fat_ring
    real(kind=REAL64) :: two = 2_REAL64
 
    ! defaults for main parameters
-   integer(kind=INT64), save :: n_doubles = 10810800  ! The amount of data to operate on, HCN(47), also HCN-3 (approx. 82.5 MB per process max.)
-   integer(kind=INT64), save :: n_chunk_max = 2**15   ! Skip too big tests due to excessive allocations of memory inside MPI and generally slow execution
-   real(kind=REAL64), save :: minskip = 2.**(1./3.)   ! Pick the triples that are no closer to each other than this ratio
+   integer(kind=INT64), parameter :: n_doubles_def = 10810800  ! The amount of data to operate on, HCN(47), also HCN-3 (approx. 82.5 MB per process max.)
+   integer(kind=INT64), parameter :: n_chunk_max_def = 2**15   ! Skip too big tests due to excessive allocations of memory inside MPI and generally slow execution
+   real(kind=REAL64), parameter :: minskip_def = 2.**(1./3.)   ! Pick the triples that are no closer to each other than this ratio
 
+   integer(kind=INT64), save :: n_doubles = n_doubles_def
+   integer(kind=INT64), save :: n_chunk_max = n_chunk_max_def
+   real(kind=REAL64), save :: minskip = minskip_def
    integer, save :: test_type = T_MPI_SR  !, verbosity = V_SPEED
 
    ! local variables
@@ -30,51 +33,91 @@ program fat_ring
    character(len=buflen) :: arg, buf
    type(factorization_t) :: n1, n2
    type(factored_divisor) :: d1, d2
-   character(len=*), parameter :: usage_str = "Usage: fatring [number_of_doubles [maximum_number_of_chunks [minimum_sample_distance]]"
    type(primes_t) :: primes
    integer(kind=INT64), parameter :: max_allowed_noncomposite = 1000000  ! prime sizes of the buffer up to 999983 are allowed
+   integer :: ia, in
+   enum, bind(C)
+      enumerator :: A_ND, A_NC, A_MS
+   end enum
 
    call parallel_init
 
-   ! ToDo parse arguments
-   if (command_argument_count() >= 1) then
-      call get_command_argument(1, arg)
-      read(arg, '(i30)') i ! expect overflow on some 19-digit numbers but who cares?
-      if (i <= 0) then
-         if (proc == main_proc) then
-            write(*,*) usage_str
-            write(*,*)"Invalid input for size (non-negative integer expected)"
-         end if
-         call exit(-23)
-      end if
-      n_doubles = i
-   endif
+   in = A_ND
+   ia = 1
+   do while (ia <= command_argument_count())
+      call get_command_argument(ia, arg)
+      select case (trim(arg))
+         case ("-h")
+            call usage("")
+            call exit(-43)
+         case ("-t")
+            ia = ia + 1
+            if (ia <= command_argument_count()) then
+               call get_command_argument(ia, buf)
+               select case (trim(buf))
+                  case ("SR", "sr")
+                     test_type = T_MPI_SR
+                  case ("P1", "p1", "Put1")
+                     test_type = T_MPI_PUT1
+                     call usage("TEST_TYPE '" // trim(buf) // "' not implemented yet")
+                     call exit(-41)
+                  case ("G1", "g1", "Get1")
+                     test_type = T_MPI_GET1
+                     call usage("TEST_TYPE '" // trim(buf) // "' not implemented yet")
+                     call exit(-41)
+                  case ("PN", "pn", "PutN")
+                     test_type = T_MPI_PUTN
+                     call usage("TEST_TYPE '" // trim(buf) // "' not implemented yet")
+                     call exit(-41)
+                  case ("GN", "gn", "GetN")
+                     test_type = T_MPI_GETN
+                     call usage("TEST_TYPE '" // trim(buf) // "' not implemented yet")
+                     call exit(-41)
+                  case ("Sh", "SH", "sh", "shmem")
+                     test_type = T_MPI_SHMEM
+                     call usage("TEST_TYPE '" // trim(buf) // "' not implemented yet")
+                     call exit(-41)
+                  case default
+                     call usage("Unrecognized TEST_TYPE provided: '" // trim(buf) // "'")
+                     call exit(-41)
+               end select
+            else
+               call usage("No TEST_TYPE provided")
+               call exit(-37)
+            end if
+         case default
+            select case (in)
+               case (A_ND)
+                  read(arg, '(i30)') i ! expect overflow on some 19-digit numbers but who cares?
+                  if (i <= 0) then
+                     call usage("Invalid input for size (non-negative integer expected)")
+                     call exit(-23)
+                  end if
+                  n_doubles = i
+               case (A_NC)
+                  read(arg, '(i30)') i ! expect overflow on some 19-digit numbers but who cares?
+                  if (i <= 0) then
+                     call usage("Invalid input for chunks (non-negative integer expected)")
+                     call exit(-29)
+                  end if
+                  n_chunk_max = i
+               case (A_MS)
+                  read(arg, '(f30.20)') a ! expect overflow on some 19-digit numbers but who cares?
+                  if (a <= 1.) then
+                     write(buf,'(a,f6.3,a)')"Invalid ratio (>=1. real expected, read: ", a, ")"
+                     call usage(buf)
+                     call exit(-31)
+                  end if
+                  minskip = a
+               case default
+                  write(*,'(a)')"Too many numbers provided. Ignored: '" // trim(buf) // "'"
+            end select
+            in = in + 1
+      end select
+      ia = ia + 1
+   end do
 
-   if (command_argument_count() >= 2) then
-      call get_command_argument(2, arg)
-      read(arg, '(i30)') i ! expect overflow on some 19-digit numbers but who cares?
-      if (i <= 0) then
-         if (proc == main_proc) then
-            write(*,*) usage_str
-            write(*,*)"Invalid input for chunks (non-negative integer expected)"
-         end if
-         call exit(-29)
-      end if
-      n_chunk_max = i
-   endif
-
-   if (command_argument_count() >= 3) then
-      call get_command_argument(3, arg)
-      read(arg, '(f30.20)') a ! expect overflow on some 19-digit numbers but who cares?
-      if (a <= 1.) then
-         if (proc == main_proc) then
-            write(*,*) usage_str
-            write(*,*)"Invalid ratio (>=1. real expected, read: ", a, ")"
-         end if
-         call exit(-31)
-      end if
-      minskip = a
-   endif
+   if (proc == main_proc) write(*,'(2a,i9,i7,f7.3)')"Called fatring -t ", trim(tt(test_type)), n_doubles, n_chunk_max, minskip
 
    write(arg, *) n_doubles
    select case (n_doubles*8_INT64)  ! Warning: 8-byte sizeof(double) assumed
@@ -170,5 +213,61 @@ contains
       end if
 
    end subroutine run_test
+
+   subroutine usage(extra_msg)
+
+      use mpisetup, only: main_proc, proc
+
+      implicit none
+
+      character(len=*), intent(in) :: extra_msg
+
+      if (proc /= main_proc) return
+
+      write(*,'(a)')"Usage: fatring [-h] [-t SR|P1|G1|Pn|Gn|Sh] [number_of_doubles [maximum_number_of_chunks [minimum_sample_distance]]"
+      write(*,'(a)')"       -h: help"
+      write(*,'(a)')"       -t TEST_TYPE: choose test type"
+      write(*,'(a)')"       TEST_TYPE: one of"
+      write(*,'(a)')"           SR: Send/Recv"
+      write(*,'(a)')"           P1/G1: Put/Get in single window"
+      write(*,'(a)')"           Pn/Gn: Put/Get in many windows"
+      write(*,'(a)')"           Sh: Shared memory"
+      write(*,'(a)')""
+      write(*,'(a,i9,i7,f7.3)')"defaults: -t SR ", n_doubles_def, n_chunk_max_def, minskip_def
+
+      if (len_trim(extra_msg) > 0) then
+         write(*,'(a)')""
+         write(*,'(a)')trim(extra_msg)
+      end if
+
+   end subroutine usage
+
+   function tt(type) result(t_str)
+
+      implicit none
+
+      integer, intent(in) :: type
+
+      character(len=2) :: t_str
+
+      t_str = "!!"
+      select case(type)
+         case (T_MPI_SR)
+            t_str = "SR"
+         case (T_MPI_GET1)
+            t_str = "G1"
+         case (T_MPI_PUT1)
+            t_str = "P1"
+         case (T_MPI_GETN)
+            t_str = "Gn"
+         case (T_MPI_PUTN)
+            t_str = "Pn"
+         case (T_MPI_SHMEM)
+            t_str = "Sh"
+         case default
+            t_str = "??"
+      end select
+
+   end function tt
 
 end program fat_ring
