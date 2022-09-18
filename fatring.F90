@@ -62,8 +62,6 @@ program fat_ring
                      test_type = T_MPI_SR
                   case ("P1", "p1", "Put1")
                      test_type = T_MPI_PUT1
-                     call usage("TEST_TYPE '" // trim(buf) // "' not implemented yet")
-                     call exit(-41)
                   case ("G1", "g1", "Get1")
                      test_type = T_MPI_GET1
                   case ("PN", "pn", "PutN")
