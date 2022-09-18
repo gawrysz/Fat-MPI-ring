@@ -112,8 +112,10 @@ contains
             write(*,*)"[ring_t:check] fillstyle not implemented"
             call exit(-19)
       end select
-      if (cnt > 0) &
-           write(*,*)"### ", cnt, "/", size(this%rbuf), " wrong values @", proc
+      if (cnt > 0) then
+         write(*,*)"### ", cnt, "/", size(this%rbuf), " wrong values @", proc
+         call exit(-5)
+      end if
 
    end subroutine check
 
@@ -134,7 +136,7 @@ contains
 
    subroutine run(this, n_chunk)
 
-      use constants, only: T_MPI_SR
+      use constants, only: T_MPI_SR, T_MPI_GET1
       use mpi,       only: MPI_Wtime
       use mpisetup,  only: tag_ub, proc, main_proc
 
@@ -167,6 +169,8 @@ contains
                write(*, '(a)')"# Reached limit for MPI tags"
                return
             endif
+         case (T_MPI_GET1)
+            call get1
          case default
             write(*,*)" Unknown test type: ", this%test_type
             call exit(-11)
@@ -276,6 +280,34 @@ contains
          deallocate(req)
 
       end function sendrecv
+
+      subroutine get1
+
+         use mpi,      only: MPI_DOUBLE_PRECISION, MPI_INTEGER_KIND, MPI_ADDRESS_KIND, MPI_INFO_NULL, MPI_COMM_WORLD
+         use mpisetup, only: proc, nproc, ierr
+
+         implicit none
+
+         integer(kind=INT64) :: i
+         integer(kind=MPI_INTEGER_KIND) :: lb, d_ext, ww
+
+         call MPI_Type_get_extent(MPI_DOUBLE_PRECISION, lb, d_ext, ierr)
+
+         call MPI_Win_create(this%sbuf, size(this%sbuf) * d_ext, d_ext, MPI_INFO_NULL, MPI_COMM_WORLD, ww, ierr)
+         call MPI_Win_fence(0, ww, ierr)
+         wtime(W_SR) = MPI_Wtime()
+
+         do i = 1, n_chunk
+            call MPI_Get(this%rbuf(1+(i-1)*(this%n/n_chunk)), int(this%n/n_chunk, kind=MPI_ADDRESS_KIND), MPI_DOUBLE_PRECISION, &
+                 &       mod(proc + 1, nproc), int((i-1)*(this%n/n_chunk), kind=MPI_ADDRESS_KIND), int(this%n/n_chunk, kind=MPI_ADDRESS_KIND), &
+                 &       MPI_DOUBLE_PRECISION, ww, ierr)
+         end do
+
+         call MPI_Win_fence(0, ww, ierr)
+         call MPI_Win_free(ww, ierr)
+         wtime(W_WAITALL) = MPI_Wtime()
+
+      end subroutine get1
 
    end subroutine run
 
