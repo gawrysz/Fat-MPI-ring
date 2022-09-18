@@ -3,6 +3,9 @@
 ! message sizes is used. Each stage of the communication is profiled so the
 ! performance of the machine(s) and MPI implementation can be analyzed in detail.
 
+! checking the exit codes :)
+! git grep exit\(|sed 's/.*: *.*exit(//' | sort -n | tr ')' ' '
+
 program fat_ring
 
    use composition,     only: factorization_t

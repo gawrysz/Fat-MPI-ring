@@ -6,13 +6,10 @@ module constants
 
    public
 
-   ! Not needed, provided by iso_fortran_env
-   ! integer, parameter :: I64 = selected_int_kind(16)
-   ! integer, parameter :: FP64 = selected_real_kind(12)
-
    integer, parameter :: INVALID = -1
 
-   integer, parameter :: buflen = 512
+   integer, parameter :: buflen = 512  ! length of buffers
+   integer, parameter :: lablen = 32   ! length of labels
 
    ! code options
    enum, bind(C)

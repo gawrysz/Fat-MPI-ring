@@ -2,6 +2,7 @@
 
 module ring
 
+   use constants,       only: lablen
    use iso_fortran_env, only: REAL64, INT64
 
    implicit none
@@ -9,13 +10,21 @@ module ring
    private
    public :: ring_t
 
+   type :: tmr_t  ! Keeps timers with labels
+      character(len=lablen) :: label
+      double precision :: wtime
+   end type tmr_t
+
    type :: ring_t
+      private
       real(kind=REAL64), allocatable, dimension(:) :: sbuf
       real(kind=REAL64), allocatable, dimension(:) :: rbuf
-      integer, private :: test_type
-      integer(kind=INT64), private :: n_chunk_max
-      integer(kind=INT64), private :: n
-      logical :: give_up
+      integer :: test_type
+      integer(kind=INT64) :: n_chunk_max
+      integer(kind=INT64) :: n
+      logical, public :: give_up
+      type(tmr_t) :: w_start, w_setup, w_check
+      type(tmr_t), dimension(:), allocatable :: w_tst
    contains
       procedure :: init
       procedure, private :: setup
@@ -35,7 +44,8 @@ contains
 
    subroutine init(this, n, test_type, chunk_max)
 
-      use memory,      only: memcheck
+      use constants, only: T_MPI_SR, T_MPI_GET1
+      use memory,    only: memcheck
 
       implicit none
 
@@ -54,6 +64,26 @@ contains
            &   this%sbuf(this%n))
 
       if (.not. memcheck()) call exit(-13)
+
+      this%w_start%label = "T_start"  ! unused
+      this%w_setup%label = "T_setup"
+      this%w_check%label = "T_check"
+
+      select case (this%test_type)
+         case (T_MPI_SR)
+            allocate(this%w_tst(2))
+            this%w_tst(1)%label = "T_SendRecv"
+            this%w_tst(2)%label = "T_Waitall"
+         case (T_MPI_GET1)
+            allocate(this%w_tst(4))
+            this%w_tst(1)%label = "T_WinCreate"
+            this%w_tst(2)%label = "T_WinFence1"
+            this%w_tst(3)%label = "T_Get"
+            this%w_tst(4)%label = "T_WinFence2"
+         case default
+            write(*,*)"Unknown test type: ", this%test_type, " (ring init)"
+            call exit(-47)
+      end select
 
    end subroutine init
 
@@ -138,24 +168,17 @@ contains
 
       use constants, only: T_MPI_SR, T_MPI_GET1
       use mpi,       only: MPI_Wtime
-      use mpisetup,  only: tag_ub, proc, main_proc
+      use mpisetup,  only: tag_ub
 
       implicit none
 
       class(ring_t),       intent(inout) :: this     ! object invoking type-bound procedure
       integer(kind=INT64), intent(in)    :: n_chunk  ! number of pieces to communicate
-      enum, bind(C)
-         enumerator :: W_START, W_SETUP, W_SR, W_WAITALL, W_CHECK
-      end enum
-      double precision, dimension(W_START:W_CHECK) :: wtime
 
-      if (proc == main_proc) &
-           write(*, '(a5,2a12,5a13)') "#proc", "chunks", "doubles", "T_setup", "T_SendRecv", "T_Waitall", "T_check", "MiB/s"
-
-      wtime(W_START) = MPI_Wtime()
+      this%w_start%wtime = MPI_Wtime()
 
       call this%setup
-      wtime(W_SETUP) = MPI_Wtime()
+      this%w_setup%wtime = MPI_Wtime()
 
       select case (this%test_type)
          case (T_MPI_SR)
@@ -172,20 +195,20 @@ contains
          case (T_MPI_GET1)
             call get1
          case default
-            write(*,*)" Unknown test type: ", this%test_type
+            write(*,*)" Unknown test type: ", this%test_type, " (ring run)"
             call exit(-11)
       end select
 
       call this%check
-      wtime(W_CHECK) = MPI_Wtime()
+      this%w_check%wtime = MPI_Wtime()
 
-      call print_wtime
+      call print_wtime([this%w_start, this%w_setup, this%w_tst, this%w_check])
 
    contains
 
       ! Collect wtime on main_proc, print it in order and also print extrema
 
-      subroutine print_wtime
+      subroutine print_wtime(wt)
 
          use constants, only: buflen
          use mpi,       only: MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, MPI_STATUS_IGNORE
@@ -193,22 +216,31 @@ contains
 
          implicit none
 
+         type(tmr_t), dimension(:), intent(in) :: wt
+
          integer :: p
          character(len=buflen) :: buf
-         double precision, dimension(W_START:W_CHECK) :: p_wtime, dt_max, dt_min, dt
+         double precision, dimension(size(wt)) :: p_wtime, dt_max, dt_min, dt
          integer :: i
 
          if (proc == main_proc) then
+            write(buf, '(a5,2a12)') "#proc", "chunks", "doubles"
+            do i = lbound(wt, dim=1) + 1, ubound(wt, dim=1)  ! skip T_start
+               write(buf(len_trim(buf) + 1:), '(a14)') trim(wt(i)%label)
+            end do
+            write(buf(len_trim(buf) + 1:), '(a14)') "MiB/s"
+            write(*, '(a)') trim(buf)
+
             dt_min(:) = huge(1.)
             dt_max(:) = -huge(1.)
             do p = main_proc, nproc-1
                if (p == main_proc) then
-                  p_wtime(:) = wtime(:)
+                  p_wtime(:) = wt(:)%wtime
                else
                   call MPI_Recv(p_wtime, size(p_wtime), MPI_DOUBLE_PRECISION, p, p, MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
                end if
 
-               dt(lbound(p_wtime, dim=1)) = p_wtime(W_WAITALL) - p_wtime(W_SETUP)
+               dt(lbound(p_wtime, dim=1)) = p_wtime(ubound(wt, dim=1) - 1) - p_wtime(lbound(wt, dim=1) + 1)
                do i = lbound(p_wtime, dim=1) + 1, ubound(p_wtime, dim=1)
                   dt(i) = p_wtime(i) - p_wtime(i-1)
                enddo
@@ -224,7 +256,8 @@ contains
             write(buf, '(a5,2i12)')"max", n_chunk, this%n/n_chunk
             call pr_wt(dt_max, buf)
          else
-            call MPI_Send(wtime, size(wtime), MPI_DOUBLE_PRECISION, main_proc, proc, MPI_COMM_WORLD, ierr)
+            p_wtime(:) = wt(:)%wtime
+            call MPI_Send(p_wtime, size(p_wtime), MPI_DOUBLE_PRECISION, main_proc, proc, MPI_COMM_WORLD, ierr)
          end if
 
       end subroutine print_wtime
@@ -235,8 +268,8 @@ contains
 
          implicit none
 
-         double precision, dimension(W_START:W_CHECK), intent(in)    :: dt
-         character(len=*),                             intent(inout) :: buf
+         double precision, dimension(:), intent(in)    :: dt
+         character(len=*),               intent(inout) :: buf
 
          integer :: i
 
@@ -272,10 +305,10 @@ contains
             call MPI_Irecv(this%rbuf(1+(i-1)*(this%n/n_chunk)), int(this%n/n_chunk, kind=MPI_INTEGER_KIND), MPI_DOUBLE_PRECISION, &
                  &         mod(        proc + 1, nproc), i, MPI_COMM_WORLD, req(2*i  ), ierr)
          enddo
-         wtime(W_SR) = MPI_Wtime()
+         this%w_tst(1)%wtime = MPI_Wtime()
 
          call MPI_Waitall(size(req, kind=MPI_INTEGER_KIND), req, MPI_STATUSES_IGNORE, ierr)
-         wtime(W_WAITALL) = MPI_Wtime()
+         this%w_tst(2)%wtime = MPI_Wtime()
 
          deallocate(req)
 
@@ -295,17 +328,20 @@ contains
 
          call MPI_Win_create(this%sbuf, size(this%sbuf) * d_ext, d_ext, MPI_INFO_NULL, MPI_COMM_WORLD, ww, ierr)
          call MPI_Win_fence(0, ww, ierr)
-         wtime(W_SR) = MPI_Wtime()
+         this%w_tst(1)%wtime = MPI_Wtime()
 
          do i = 1, n_chunk
             call MPI_Get(this%rbuf(1+(i-1)*(this%n/n_chunk)), int(this%n/n_chunk, kind=MPI_ADDRESS_KIND), MPI_DOUBLE_PRECISION, &
                  &       mod(proc + 1, nproc), int((i-1)*(this%n/n_chunk), kind=MPI_ADDRESS_KIND), int(this%n/n_chunk, kind=MPI_ADDRESS_KIND), &
                  &       MPI_DOUBLE_PRECISION, ww, ierr)
          end do
+         this%w_tst(2)%wtime = MPI_Wtime()
 
          call MPI_Win_fence(0, ww, ierr)
+         this%w_tst(3)%wtime = MPI_Wtime()
+
          call MPI_Win_free(ww, ierr)
-         wtime(W_WAITALL) = MPI_Wtime()
+         this%w_tst(4)%wtime = MPI_Wtime()
 
       end subroutine get1
 
