@@ -44,7 +44,7 @@ contains
 
    subroutine init(this, n, test_type, chunk_max)
 
-      use constants, only: T_MPI_SR, T_MPI_GET1, T_MPI_PUT1
+      use constants, only: T_MPI_SR, T_MPI_GET1, T_MPI_PUT1, T_MPI_GETN, T_MPI_PUTN
       use memory,    only: memcheck
 
       implicit none
@@ -74,12 +74,13 @@ contains
             allocate(this%w_tst(2))
             this%w_tst(1)%label = "T_SendRecv"
             this%w_tst(2)%label = "T_Waitall"
-         case (T_MPI_GET1, T_MPI_PUT1)
-            allocate(this%w_tst(4))
+         case (T_MPI_GET1, T_MPI_PUT1, T_MPI_GETN, T_MPI_PUTN)
+            allocate(this%w_tst(5))
             this%w_tst(1)%label = "T_WinCreate"
             this%w_tst(2)%label = "T_WinFence1"
-            this%w_tst(3)%label = merge("T_Get", "T_Put", this%test_type == T_MPI_GET1)
+            this%w_tst(3)%label = merge("T_Get", "T_Put", any(this%test_type == [T_MPI_GET1, T_MPI_GETN]))
             this%w_tst(4)%label = "T_WinFence2"
+            this%w_tst(5)%label = "T_WinFree"
          case default
             write(*,*)"[ring:init] Unknown test type: ", this%test_type
             call exit(-47)
@@ -144,7 +145,7 @@ contains
       end select
       if (cnt > 0) then
          write(*,*)"### ", cnt, "/", size(this%rbuf), " wrong values @", proc
-!         call exit(-5)
+         call exit(-5)
       end if
 
    end subroutine check
@@ -166,7 +167,7 @@ contains
 
    subroutine run(this, n_chunk)
 
-      use constants, only: T_MPI_SR, T_MPI_GET1, T_MPI_PUT1
+      use constants, only: T_MPI_SR, T_MPI_GET1, T_MPI_PUT1, T_MPI_GETN, T_MPI_PUTN
       use mpi,       only: MPI_Wtime
       use mpisetup,  only: tag_ub
 
@@ -194,6 +195,8 @@ contains
             endif
          case (T_MPI_GET1, T_MPI_PUT1)
             call getput1
+         case (T_MPI_GETN, T_MPI_PUTN)
+            call getputn
          case default
             write(*,*)"[ring:run] Unknown test type: ", this%test_type
             call exit(-11)
@@ -328,18 +331,21 @@ contains
 
          select case (this%test_type)
             case (T_MPI_GET1)
-               call MPI_Win_create(this%sbuf, size(this%sbuf) * d_ext, d_ext, MPI_INFO_NULL, MPI_COMM_WORLD, ww, ierr)
+               call MPI_Win_create(this%sbuf, size(this%sbuf, kind=MPI_ADDRESS_KIND) * d_ext, d_ext, MPI_INFO_NULL, MPI_COMM_WORLD, ww, ierr)
             case (T_MPI_PUT1)
-               call MPI_Win_create(this%rbuf, size(this%rbuf) * d_ext, d_ext, MPI_INFO_NULL, MPI_COMM_WORLD, ww, ierr)
+               call MPI_Win_create(this%rbuf, size(this%rbuf, kind=MPI_ADDRESS_KIND) * d_ext, d_ext, MPI_INFO_NULL, MPI_COMM_WORLD, ww, ierr)
             case default
                write(*,*)"[ring:run:getput1] test type not implemented (win create)"
                call exit(-59)
          end select
-         call MPI_Win_fence(0, ww, ierr)
          this%w_tst(1)%wtime = MPI_Wtime()
+
+         call MPI_Win_fence(0, ww, ierr)
+         this%w_tst(2)%wtime = MPI_Wtime()
 
          do i = 1, n_chunk
             select case (this%test_type)
+               ! Note that despite of indexing from 1 on local array, we have to provide target_disp starting from 0
                case (T_MPI_GET1)
                   call MPI_Get(this%rbuf(1+(i-1)*(this%n/n_chunk)), int(this%n/n_chunk, kind=MPI_ADDRESS_KIND), MPI_DOUBLE_PRECISION, &
                        &       mod(proc + 1, nproc), int((i-1)*(this%n/n_chunk), kind=MPI_ADDRESS_KIND), int(this%n/n_chunk, kind=MPI_ADDRESS_KIND), &
@@ -353,15 +359,79 @@ contains
                   call exit(-53)
             end select
          end do
-         this%w_tst(2)%wtime = MPI_Wtime()
-
-         call MPI_Win_fence(0, ww, ierr)
          this%w_tst(3)%wtime = MPI_Wtime()
 
-         call MPI_Win_free(ww, ierr)
+         call MPI_Win_fence(0, ww, ierr)
          this%w_tst(4)%wtime = MPI_Wtime()
 
+         call MPI_Win_free(ww, ierr)
+         this%w_tst(5)%wtime = MPI_Wtime()
+
       end subroutine getput1
+
+      subroutine getputn
+
+         use mpi,      only: MPI_DOUBLE_PRECISION, MPI_INTEGER_KIND, MPI_ADDRESS_KIND, MPI_INFO_NULL, MPI_COMM_WORLD
+         use mpisetup, only: proc, nproc, ierr
+
+         implicit none
+
+         integer(kind=INT64) :: i
+         integer(kind=MPI_INTEGER_KIND) :: lb, d_ext
+         integer(kind=MPI_INTEGER_KIND), dimension(:), allocatable :: ww
+
+         call MPI_Type_get_extent(MPI_DOUBLE_PRECISION, lb, d_ext, ierr)
+         allocate(ww(n_chunk))
+
+         do i = 1, n_chunk
+            select case (this%test_type)
+               case (T_MPI_GETN)
+                  call MPI_Win_create(this%sbuf(1+(i-1)*(this%n/n_chunk)), int(this%n/n_chunk * d_ext, kind=MPI_ADDRESS_KIND), d_ext, MPI_INFO_NULL, MPI_COMM_WORLD, ww(i), ierr)
+               case (T_MPI_PUTN)
+                  call MPI_Win_create(this%rbuf(1+(i-1)*(this%n/n_chunk)), int(this%n/n_chunk * d_ext, kind=MPI_ADDRESS_KIND), d_ext, MPI_INFO_NULL, MPI_COMM_WORLD, ww(i), ierr)
+               case default
+                  write(*,*)"[ring:run:getputn] test type not implemented (win create)"
+                  call exit(-59)
+            end select
+         end do
+         this%w_tst(1)%wtime = MPI_Wtime()
+
+         do i = 1, n_chunk
+            call MPI_Win_fence(0, ww(i), ierr)
+         end do
+         this%w_tst(2)%wtime = MPI_Wtime()
+
+         do i = 1, n_chunk
+            select case (this%test_type)
+               ! Note that despite of indexing from 1 on local array, we have to provide target_disp starting from 0
+               case (T_MPI_GETN)
+                  call MPI_Get(this%rbuf(1+(i-1)*(this%n/n_chunk)), int(this%n/n_chunk, kind=MPI_ADDRESS_KIND), MPI_DOUBLE_PRECISION, &
+                       &       mod(proc + 1, nproc), int(0, kind=MPI_ADDRESS_KIND), int(this%n/n_chunk, kind=MPI_ADDRESS_KIND), &
+                       &       MPI_DOUBLE_PRECISION, ww(i), ierr)
+               case (T_MPI_PUTN)
+                  call MPI_Put(this%sbuf(1+(i-1)*(this%n/n_chunk)), int(this%n/n_chunk, kind=MPI_ADDRESS_KIND), MPI_DOUBLE_PRECISION, &
+                       &       mod(nproc + proc - 1, nproc), int(0, kind=MPI_ADDRESS_KIND), int(this%n/n_chunk, kind=MPI_ADDRESS_KIND), &
+                       &       MPI_DOUBLE_PRECISION, ww(i), ierr)
+               case default
+                  write(*,*)"[ring:run:getputn] test type not implemented (get/put)"
+                  call exit(-53)
+            end select
+         end do
+         this%w_tst(3)%wtime = MPI_Wtime()
+
+         do i = 1, n_chunk
+            call MPI_Win_fence(0, ww(i), ierr)
+         end do
+         this%w_tst(4)%wtime = MPI_Wtime()
+
+         do i = 1, n_chunk
+            call MPI_Win_free(ww(i), ierr)
+         end do
+         this%w_tst(5)%wtime = MPI_Wtime()
+
+         deallocate(ww)
+
+      end subroutine getputn
 
    end subroutine run
 
